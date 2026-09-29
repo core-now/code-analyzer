@@ -2416,27 +2416,45 @@
         </button>
       </div>
 
-      <!-- Form Error Banner -->
-      <div id="authErrorBanner" class="hidden mt-3 p-2.5 rounded-lg bg-rose-950/50 border border-rose-500/60 text-rose-300 text-xs font-mono"></div>
+      <!-- Success & Error Banners -->
+      <div id="authSuccessBanner" class="hidden mt-3 p-2.5 rounded-lg bg-[#63B22F]/15 border border-[#63B22F]/60 text-[#63B22F] text-xs font-mono flex items-center space-x-2"></div>
+      <div id="authErrorBanner" class="hidden mt-3 p-2.5 rounded-lg bg-rose-950/50 border border-rose-500/60 text-rose-300 text-xs font-mono flex items-center space-x-2"></div>
+
+      <!-- GitHub OAuth SSO Button -->
+      <div class="mt-4">
+        <button type="button" id="authGithubBtn" onclick="handleGithubAuthClick()" class="w-full py-2.5 px-4 rounded-xl bg-[#24292F] hover:bg-[#2f353d] border border-zinc-700 hover:border-zinc-500 text-white font-mono text-xs font-semibold flex items-center justify-center space-x-2.5 transition shadow-md group">
+          <span class="text-base group-hover:scale-110 transition-transform">🐱</span>
+          <span class="tracking-wide">Mit GitHub anmelden</span>
+          <span class="ml-auto text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-zinc-800 border border-zinc-700 text-zinc-400">OAuth</span>
+        </button>
+        <p id="authGithubHint" class="text-[10px] text-zinc-500 text-center font-mono mt-1.5 hidden">ℹ️ GitHub SSO benötigt GITHUB_CLIENT_ID in .env</p>
+      </div>
+
+      <!-- Divider -->
+      <div class="relative flex py-3 items-center">
+        <div class="flex-grow border-t border-brand-border"></div>
+        <span class="flex-shrink mx-3 text-[10px] font-mono text-zinc-500 uppercase tracking-wider">Oder mit Account</span>
+        <div class="flex-grow border-t border-brand-border"></div>
+      </div>
 
       <!-- Auth Form -->
-      <form id="authForm" onsubmit="handleAuthSubmit(event)" class="mt-4 space-y-3.5 font-mono text-xs">
+      <form id="authForm" onsubmit="handleAuthSubmit(event)" class="space-y-3 font-mono text-xs">
         <div>
           <label class="block text-[11px] text-zinc-400 mb-1">Benutzername</label>
-          <input type="text" id="authUsernameInput" required placeholder="dev_alex" class="w-full bg-brand-dark border border-brand-border rounded-lg px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-brand-orange transition" />
+          <input type="text" id="authUsernameInput" required placeholder="z. B. dev_alex" autocomplete="username" class="w-full bg-brand-dark border border-brand-border rounded-lg px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-brand-orange transition" />
         </div>
 
         <div id="authEmailGroup" class="hidden">
           <label class="block text-[11px] text-zinc-400 mb-1">E-Mail-Adresse</label>
-          <input type="email" id="authEmailInput" placeholder="alex@company.com" class="w-full bg-brand-dark border border-brand-border rounded-lg px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-brand-orange transition" />
+          <input type="email" id="authEmailInput" placeholder="alex@company.com" autocomplete="email" class="w-full bg-brand-dark border border-brand-border rounded-lg px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-brand-orange transition" />
         </div>
 
         <div>
           <label class="block text-[11px] text-zinc-400 mb-1">Passwort</label>
-          <input type="password" id="authPasswordInput" required placeholder="••••••••" class="w-full bg-brand-dark border border-brand-border rounded-lg px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-brand-orange transition" />
+          <input type="password" id="authPasswordInput" required placeholder="•••••••• (min. 6 Zeichen)" autocomplete="current-password" class="w-full bg-brand-dark border border-brand-border rounded-lg px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-brand-orange transition" />
         </div>
 
-        <button type="submit" id="authSubmitBtn" class="w-full py-2.5 rounded-lg bg-brand-orange text-black font-bold text-xs hover:opacity-90 transition shadow-lg shadow-orange-950 flex items-center justify-center space-x-2">
+        <button type="submit" id="authSubmitBtn" class="w-full py-2.5 rounded-lg bg-brand-orange text-black font-bold text-xs hover:opacity-90 transition shadow-lg shadow-orange-950/40 flex items-center justify-center space-x-2">
           <i data-lucide="log-in" class="w-4 h-4"></i>
           <span id="authSubmitBtnText">Anmelden</span>
         </button>
@@ -2823,12 +2841,41 @@
     let currentMatchIndex = -1;
     let d3Zoom = null;
 
+    // --- Toast Notification System ---
+    function showToast(message, type = 'info') {
+      let container = document.getElementById('globalToastContainer');
+      if (!container) {
+        container = document.createElement('div');
+        container.id = 'globalToastContainer';
+        container.className = 'fixed bottom-5 right-5 z-[9999] flex flex-col space-y-2 pointer-events-none max-w-sm';
+        document.body.appendChild(container);
+      }
+      const toast = document.createElement('div');
+      const isSuccess = type === 'success';
+      const isError = type === 'error';
+      const borderClass = isSuccess ? 'border-[#63B22F]/80 bg-[#142010]/95 text-[#63B22F]' :
+                          isError ? 'border-rose-500/80 bg-[#251014]/95 text-rose-300' :
+                          'border-brand-border bg-brand-dark/95 text-white';
+      toast.className = `px-4 py-3 rounded-xl border shadow-2xl font-mono text-xs flex items-center space-x-2.5 pointer-events-auto transition-all duration-300 transform opacity-0 translate-y-3 ${borderClass}`;
+      const icon = isSuccess ? '✓' : (isError ? '⚠️' : 'ℹ️');
+      toast.innerHTML = `<span class="font-bold text-sm">${icon}</span><span class="leading-tight">${escapeHtml(message)}</span>`;
+      container.appendChild(toast);
+      requestAnimationFrame(() => {
+        toast.classList.remove('opacity-0', 'translate-y-3');
+      });
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-3');
+        setTimeout(() => toast.remove(), 350);
+      }, 4500);
+    }
+
     // --- Authentication & User Session State ---
     let authState = {
       token: localStorage.getItem('corenow_auth_token') || null,
       user: null,
       mode: 'login' // 'login' or 'register'
     };
+    let isGithubAuthAvailable = false;
 
     function getAuthHeaders() {
       const headers = { 'Content-Type': 'application/json' };
@@ -2836,6 +2883,30 @@
         headers['Authorization'] = `Bearer ${authState.token}`;
       }
       return headers;
+    }
+
+    async function checkAuthConfig() {
+      try {
+        const res = await fetch('/api/auth/config');
+        if (res.ok) {
+          const cfg = await res.json();
+          isGithubAuthAvailable = !!cfg.github_oauth_enabled;
+          const ghHint = document.getElementById('authGithubHint');
+          if (ghHint) {
+            if (!cfg.github_client_id_set) {
+              ghHint.innerText = 'ℹ️ GitHub SSO benötigt GITHUB_CLIENT_ID in .env';
+              ghHint.classList.remove('hidden');
+            } else if (!isGithubAuthAvailable) {
+              ghHint.innerText = 'ℹ️ GITHUB_CLIENT_SECRET fehlt in .env';
+              ghHint.classList.remove('hidden');
+            } else {
+              ghHint.classList.add('hidden');
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Could not check auth config:', e);
+      }
     }
 
     async function checkAuthSession() {
@@ -2863,6 +2934,24 @@
       }
     }
 
+    function checkUrlAuthParams() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('login_success')) {
+        showToast('🐱 Erfolgreich mit GitHub angemeldet!', 'success');
+        const url = new URL(window.location);
+        url.searchParams.delete('login_success');
+        window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : ''));
+        checkAuthSession();
+      }
+      if (params.has('auth_error')) {
+        const err = params.get('auth_error');
+        showToast('GitHub Login fehlgeschlagen: ' + err, 'error');
+        const url = new URL(window.location);
+        url.searchParams.delete('auth_error');
+        window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : ''));
+      }
+    }
+
     function updateAuthHeaderUI(user) {
       const loggedOut = document.getElementById('loggedOutSection');
       const loggedIn = document.getElementById('loggedInSection');
@@ -2885,17 +2974,21 @@
       const title = document.getElementById('authModalTitle');
       const subtitle = document.getElementById('authModalSubtitle');
       const emailGroup = document.getElementById('authEmailGroup');
+      const emailInput = document.getElementById('authEmailInput');
       const submitText = document.getElementById('authSubmitBtnText');
       const toggleHint = document.getElementById('authToggleHint');
       const toggleBtn = document.getElementById('authToggleBtn');
       const errorBanner = document.getElementById('authErrorBanner');
+      const successBanner = document.getElementById('authSuccessBanner');
 
       if (errorBanner) errorBanner.classList.add('hidden');
+      if (successBanner) successBanner.classList.add('hidden');
 
       if (mode === 'register') {
         if (title) title.innerText = 'DEVELOPER REGISTRIERUNG';
         if (subtitle) subtitle.innerText = 'Neuen Account für Multi-User Snapshots erstellen';
         if (emailGroup) emailGroup.classList.remove('hidden');
+        if (emailInput) emailInput.setAttribute('required', 'true');
         if (submitText) submitText.innerText = 'Konto erstellen';
         if (toggleHint) toggleHint.innerText = 'Bereits registriert?';
         if (toggleBtn) toggleBtn.innerText = 'Jetzt anmelden';
@@ -2903,12 +2996,15 @@
         if (title) title.innerText = 'DEVELOPER LOGIN';
         if (subtitle) subtitle.innerText = 'Zugang zu eigenen Projekten & Snapshots';
         if (emailGroup) emailGroup.classList.add('hidden');
+        if (emailInput) emailInput.removeAttribute('required');
         if (submitText) submitText.innerText = 'Anmelden';
         if (toggleHint) toggleHint.innerText = 'Noch kein Account?';
         if (toggleBtn) toggleBtn.innerText = 'Kostenlos registrieren';
       }
 
+      checkAuthConfig();
       if (modal) modal.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
     }
 
     function closeAuthModal() {
@@ -2920,16 +3016,75 @@
       openAuthModal(authState.mode === 'login' ? 'register' : 'login');
     }
 
+    function handleGithubAuthClick() {
+      const errorBanner = document.getElementById('authErrorBanner');
+      if (!isGithubAuthAvailable) {
+        if (errorBanner) {
+          errorBanner.innerHTML = '<span>⚠️ GitHub SSO benötigt <code>GITHUB_CLIENT_ID</code> und <code>GITHUB_CLIENT_SECRET</code> in der <code>.env</code>.</span>';
+          errorBanner.classList.remove('hidden');
+        }
+        return;
+      }
+      window.location.href = '/api/auth/github';
+    }
+
     async function handleAuthSubmit(e) {
       e.preventDefault();
-      const username = document.getElementById('authUsernameInput').value.trim();
-      const password = document.getElementById('authPasswordInput').value;
-      const email = document.getElementById('authEmailInput')?.value.trim();
+      const usernameInput = document.getElementById('authUsernameInput');
+      const passwordInput = document.getElementById('authPasswordInput');
+      const emailInput = document.getElementById('authEmailInput');
       const errorBanner = document.getElementById('authErrorBanner');
+      const successBanner = document.getElementById('authSuccessBanner');
+      const submitBtn = document.getElementById('authSubmitBtn');
+      const submitText = document.getElementById('authSubmitBtnText');
+
+      if (errorBanner) errorBanner.classList.add('hidden');
+      if (successBanner) successBanner.classList.add('hidden');
+
+      const username = usernameInput ? usernameInput.value.trim() : '';
+      const password = passwordInput ? passwordInput.value : '';
+      const email = emailInput ? emailInput.value.trim() : '';
+
+      if (!username) {
+        if (errorBanner) {
+          errorBanner.innerText = 'Bitte gib deinen Benutzernamen oder deine E-Mail-Adresse ein.';
+          errorBanner.classList.remove('hidden');
+        }
+        return;
+      }
 
       const isRegister = authState.mode === 'register';
+
+      if (isRegister) {
+        if (!email) {
+          if (errorBanner) {
+            errorBanner.innerText = 'Bitte gib eine gültige E-Mail-Adresse ein.';
+            errorBanner.classList.remove('hidden');
+          }
+          return;
+        }
+        if (!password || password.length < 6) {
+          if (errorBanner) {
+            errorBanner.innerText = 'Das Passwort muss mindestens 6 Zeichen lang sein.';
+            errorBanner.classList.remove('hidden');
+          }
+          return;
+        }
+      } else {
+        if (!password) {
+          if (errorBanner) {
+            errorBanner.innerText = 'Bitte gib dein Passwort ein.';
+            errorBanner.classList.remove('hidden');
+          }
+          return;
+        }
+      }
+
       const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
       const payload = isRegister ? { username, email, password } : { username, password };
+
+      if (submitBtn) submitBtn.disabled = true;
+      if (submitText) submitText.innerText = isRegister ? 'Erstelle Konto...' : 'Melde an...';
 
       try {
         const res = await fetch(endpoint, {
@@ -2937,13 +3092,15 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
-        const data = await res.json();
+        const data = await res.json().catch(() => ({ error: 'Ungültige Serverantwort.' }));
 
         if (!res.ok) {
           if (errorBanner) {
-            errorBanner.innerText = data.error || 'Authentifizierung fehlgeschlagen.';
+            errorBanner.innerText = data.error || (isRegister ? 'Registrierung fehlgeschlagen.' : 'Ungültiger Benutzername/E-Mail oder falsches Passwort.');
             errorBanner.classList.remove('hidden');
           }
+          if (submitBtn) submitBtn.disabled = false;
+          if (submitText) submitText.innerText = isRegister ? 'Konto erstellen' : 'Anmelden';
           return;
         }
 
@@ -2951,25 +3108,41 @@
         authState.user = data.user;
         localStorage.setItem('corenow_auth_token', data.token);
         updateAuthHeaderUI(data.user);
-        closeAuthModal();
 
-        // Show welcome toast
-        alert(`Willkommen zurück, ${data.user.username}!`);
+        if (successBanner) {
+          successBanner.innerText = isRegister
+            ? `🎉 Account '${data.user.username}' erfolgreich erstellt!`
+            : `✅ Willkommen zurück, ${data.user.username}!`;
+          successBanner.classList.remove('hidden');
+        }
+
+        showToast(isRegister ? `Konto erstellt: ${data.user.username}` : `Eingeloggt als ${data.user.username}`, 'success');
+
+        setTimeout(() => {
+          closeAuthModal();
+          if (submitBtn) submitBtn.disabled = false;
+          if (submitText) submitText.innerText = isRegister ? 'Konto erstellen' : 'Anmelden';
+        }, 500);
+
       } catch (err) {
         if (errorBanner) {
           errorBanner.innerText = 'Verbindungsfehler zum Auth-Server: ' + err.message;
           errorBanner.classList.remove('hidden');
         }
+        if (submitBtn) submitBtn.disabled = false;
+        if (submitText) submitText.innerText = isRegister ? 'Konto erstellen' : 'Anmelden';
       }
     }
 
     function handleUserLogout() {
       if (confirm('Möchtest du dich wirklich abmelden?')) {
+        const prevUser = authState.user ? authState.user.username : 'Benutzer';
         authState.token = null;
         authState.user = null;
         localStorage.removeItem('corenow_auth_token');
         updateAuthHeaderUI(null);
         fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+        showToast(`Abgemeldet (${prevUser})`, 'info');
       }
     }
 
@@ -3187,6 +3360,8 @@
     // Initialize Settings, Auth & Icons
     loadSettings();
     lucide.createIcons();
+    checkAuthConfig();
+    checkUrlAuthParams();
     checkAuthSession();
     checkShareUrlParameter();
 
@@ -4711,7 +4886,45 @@
     // --- Ingest Data & Render Components ---
     function ingestAnalysisData(data) {
       if (!data) return;
+
+      // Normalize files array to file_contents map if needed (e.g. from Git API tree)
+      if (Array.isArray(data.files) && !data.file_contents) {
+        data.file_contents = {};
+        data.files.forEach(f => {
+          if (f && f.path) {
+            data.file_contents[f.path] = f.content || generateFallbackFileContent(f.path);
+          }
+        });
+      }
+
+      // Reconstruct file_tree if missing
+      if (!data.file_tree && (data.file_contents || data.files)) {
+        const fileMap = data.file_contents || {};
+        const reconstructedTree = { name: "root", type: "directory", children: {} };
+        Object.keys(fileMap).forEach(p => {
+          const parts = p.split(/[\/\\]/);
+          let curr = reconstructedTree;
+          parts.forEach((part, idx) => {
+            if (idx === parts.length - 1) {
+              curr.children[part] = {
+                name: part,
+                type: "file",
+                path: p,
+                language: typeof getLanguageFromPath === 'function' ? getLanguageFromPath(p) : 'text',
+                lines: typeof fileMap[p] === 'string' ? fileMap[p].split('\n').length : 100
+              };
+            } else {
+              curr.children[part] = curr.children[part] || { name: part, type: "directory", children: {} };
+              curr = curr.children[part];
+            }
+          });
+        });
+        data.file_tree = reconstructedTree;
+      }
+
       currentData = data;
+      window.globalAnalysisData = data;
+
       if (window.codeCityApp && typeof window.codeCityApp.buildCity === 'function') {
         window.codeCityApp.buildCity(data);
       }
@@ -4724,7 +4937,7 @@
 
       // Populate Metrics
       const totalLoc = document.getElementById('totalLocDisplay');
-      if (totalLoc) totalLoc.innerText = data.summary?.code_lines?.toLocaleString() || 0;
+      if (totalLoc) totalLoc.innerText = data.summary?.code_lines?.toLocaleString() || (data.summary?.total_lines?.toLocaleString() || 0);
       const fileBadge = document.getElementById('fileCountBadge');
       if (fileBadge) fileBadge.innerText = `${data.summary?.total_files || Object.keys(data.file_contents || data.files || {}).length} files`;
       
@@ -4751,6 +4964,10 @@
         openFileInViewer(firstPath);
       }
     }
+
+    // Expose global alias for backward compatibility and external imports
+    window.loadAnalysisData = ingestAnalysisData;
+    window.ingestAnalysisData = ingestAnalysisData;
 
     // --- Risk & Health Radar / Analysis Renderer ---
     function renderRiskAnalysis(riskRadarData, fullData) {
@@ -5800,7 +6017,7 @@
     let currentMindmapMode = 'satellite'; // 'satellite' (5-6 primary satellites) or 'heuristic' (folders)
     let isPhysicsFrozen = false;
     let physicsAutoFreezeTimer = null;
-    const fileAICache = {}; // Local in-memory cache for file reviews
+    let fileAICache = {}; // Local in-memory cache for file reviews
 
     const SATELLITE_DEFINITIONS = [
       {
@@ -12661,6 +12878,9 @@ class CodeCityMetropolis {
         dropzoneView.classList.add('hidden');
       }
       
+      console.log("Git Repository successfully imported:", data.project_name);
+      alert(`Git Repository "${data.project_name}" erfolgreich geladen!`);
+      
     } catch (e) {
       alert("Failed to import Git Repo: " + e.message);
       console.error(e);
@@ -12671,18 +12891,18 @@ class CodeCityMetropolis {
 
   // Intercept the file loading to fetch raw content lazily
   document.addEventListener('DOMContentLoaded', () => {
-    // Wait for everything to initialize, then hook window.showFileContent
+    // Wait for everything to initialize, then hook window.showFileContent & openFileInViewer
     setTimeout(() => {
-      const originalShowFileContent = window.showFileContent;
+      const originalShowFileContent = window.showFileContent || window.openFileInViewer;
       if(originalShowFileContent) {
-        window.showFileContent = async function(filePath) {
+        const wrappedFunction = async function(filePath, sym = null, line = null) {
           if(isGitMode && window.globalAnalysisData && window.globalAnalysisData.files) {
             // Find the file node
             const fileNode = window.globalAnalysisData.files.find(f => f.path === filePath);
             if(fileNode && fileNode.git_raw_url) {
                try {
                  // Try fetching content if not cached
-                 if (!fileNode.content) {
+                 if (!fileNode.content || (window.globalAnalysisData.file_contents && window.globalAnalysisData.file_contents[filePath]?.includes('CORENOW CODEBASE SNAPSHOT - METADATA PLACEHOLDER'))) {
                    const codeContentEl = document.getElementById('codeContent');
                    if (codeContentEl) codeContentEl.textContent = "Loading source code from remote...";
                    
@@ -12692,6 +12912,9 @@ class CodeCityMetropolis {
                    const res = await fetch(fileNode.git_raw_url, { headers });
                    if(res.ok) {
                      fileNode.content = await res.text();
+                     if (window.globalAnalysisData.file_contents) {
+                       window.globalAnalysisData.file_contents[filePath] = fileNode.content;
+                     }
                    } else {
                      if (codeContentEl) codeContentEl.textContent = "Error loading source code: " + res.status;
                      return;
@@ -12704,8 +12927,12 @@ class CodeCityMetropolis {
                }
             }
           }
-          originalShowFileContent(filePath);
+          if (typeof originalShowFileContent === 'function') {
+            originalShowFileContent(filePath, sym, line);
+          }
         };
+        window.showFileContent = wrappedFunction;
+        window.openFileInViewer = wrappedFunction;
       }
     }, 1000);
   });
