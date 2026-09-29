@@ -1,0 +1,954 @@
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+    
+    :root {
+      --brand-orange: #FF8000;
+      --brand-orange-glow: rgba(255, 128, 0, 0.35);
+      --brand-glow: rgba(255, 128, 0, 0.25);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body, button, input, select, textarea, .font-sans {
+      font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    code, pre, .font-mono, .font-code {
+      font-family: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+    }
+
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: #0d0d12;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #27272a;
+      border-radius: 3px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: var(--brand-orange);
+    }
+
+    /* CoreNow Neon Highlights & Glows */
+    .corenow-glow {
+      box-shadow: 0 0 20px var(--brand-glow);
+    }
+    .corenow-border-glow {
+      border-color: var(--brand-orange);
+      box-shadow: 0 0 12px var(--brand-glow);
+    }
+
+    /* Scanline / HUD Overlay */
+    .hud-scanline {
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.03), rgba(0, 255, 0, 0.01), rgba(0, 0, 255, 0.03));
+      background-size: 100% 2px, 3px 100%;
+      pointer-events: none;
+    }
+
+    /* Radar Pulse Animation */
+    @keyframes radarPulse {
+      0% { transform: scale(0.95); opacity: 0.8; }
+      50% { transform: scale(1.05); opacity: 0.3; }
+      100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    .scan-pulse {
+      animation: radarPulse 3s infinite ease-in-out;
+    }
+
+    /* Active Highlighted Line in Code Viewer */
+    .line-number-highlight {
+      background-color: var(--brand-orange) !important;
+      color: #000000 !important;
+      font-weight: bold;
+    }
+    .pulse-highlight-line {
+      background: linear-gradient(90deg, rgba(255,128,0,0.3) 0%, rgba(255,128,0,0.05) 100%) !important;
+      border-left: 3px solid var(--brand-orange) !important;
+    }
+
+    /* Target building selection pulse */
+    @keyframes selectionGlowPulse {
+      0% { box-shadow: 0 0 15px rgba(255, 128, 0, 0.4); }
+      50% { box-shadow: 0 0 30px rgba(255, 128, 0, 0.85); }
+      100% { box-shadow: 0 0 15px rgba(255, 128, 0, 0.4); }
+    }
+    .selection-pulse-glow {
+      animation: selectionGlowPulse 2s infinite ease-in-out;
+    }
+
+    /* District & Folder Sidebar Interactive Neon Highlight & Pulse (#D9FF3D / #63B22F) */
+    @keyframes districtNeonPulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(217, 255, 61, 0.7), inset 0 0 8px rgba(99, 178, 47, 0.4);
+        border-color: #D9FF3D;
+        background-color: rgba(217, 255, 61, 0.16);
+      }
+      50% {
+        box-shadow: 0 0 14px 2px rgba(217, 255, 61, 0.9), inset 0 0 14px rgba(99, 178, 47, 0.6);
+        border-color: #63B22F;
+        background-color: rgba(99, 178, 47, 0.28);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(217, 255, 61, 0), inset 0 0 8px rgba(99, 178, 47, 0.4);
+        border-color: #D9FF3D;
+        background-color: rgba(217, 255, 61, 0.16);
+      }
+    }
+    .district-sidebar-highlight {
+      position: relative !important;
+      border: 1.5px solid #D9FF3D !important;
+      border-radius: 6px !important;
+      animation: districtNeonPulse 2s infinite ease-in-out !important;
+      color: #FFFFFF !important;
+      z-index: 10 !important;
+    }
+    .district-sidebar-highlight span {
+      color: #D9FF3D !important;
+      font-weight: 700 !important;
+    }
+    html.light .district-sidebar-highlight {
+      border: 1.5px solid #63B22F !important;
+      background-color: rgba(99, 178, 47, 0.18) !important;
+      box-shadow: 0 0 10px rgba(99, 178, 47, 0.45) !important;
+    }
+    html.light .district-sidebar-highlight span {
+      color: #15803d !important;
+      font-weight: 700 !important;
+    }
+
+    /* =========================================================================
+       COMPREHENSIVE LIGHT THEME STYLING OVERRIDES (html.light / body.light)
+       Covers all views, components, headers, sidebars, explorer, code-viewer,
+       3D City Metropolis, modals, inspectors, badges, dropdowns, inputs, etc.
+       ========================================================================= */
+    html.light body,
+    html.light #appContainer {
+      background-color: #F8FAFC !important;
+      color: #0F172A !important;
+    }
+
+    /* Top Header & Navigation */
+    html.light header {
+      background-color: rgba(255, 255, 255, 0.95) !important;
+      border-color: #E2E8F0 !important;
+      color: #0F172A !important;
+      box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05) !important;
+    }
+    html.light #projectBadge {
+      background-color: #FFFFFF !important;
+      border-color: #E2E8F0 !important;
+      color: #1E293B !important;
+    }
+    html.light #projectNameDisplay {
+      color: #0F172A !important;
+    }
+    html.light header button.bg-brand-dark,
+    html.light header button.bg-brand-dark\/90,
+    html.light header button.bg-brand-anthracite {
+      background-color: #FFFFFF !important;
+      border-color: #CBD5E1 !important;
+      color: #334155 !important;
+    }
+    html.light header button.bg-brand-dark:hover,
+    html.light header button.bg-brand-dark\/90:hover,
+    html.light header button.bg-brand-anthracite:hover {
+      background-color: #EDF2F7 !important;
+      border-color: var(--brand-orange) !important;
+      color: #0F172A !important;
+    }
+    html.light #btnGlobalAIScanHeader {
+      background: linear-gradient(to right, rgba(255, 128, 0, 0.12), rgba(245, 158, 11, 0.12)) !important;
+      border-color: var(--brand-orange) !important;
+      color: var(--brand-orange) !important;
+    }
+    html.light #btnGlobalAIScanHeader:hover {
+      background: var(--brand-orange) !important;
+      color: #000000 !important;
+    }
+
+    /* Left Sidebar & Main Navigation */
+    html.light #mainNavBar {
+      background-color: #FFFFFF !important;
+      border-color: #E2E8F0 !important;
+      box-shadow: 1px 0 3px 0 rgba(0, 0, 0, 0.03) !important;
+    }
+    html.light #mainNavBar button {
+      color: #64748B !important;
+    }
+    html.light #mainNavBar button:hover {
+      background-color: #F1F5F9 !important;
+      color: #0F172A !important;
+    }
+    html.light #mainNavBar button.active,
+    html.light #mainNavBar button.bg-brand-dark {
+      background-color: #FFF7ED !important;
+      color: var(--brand-orange) !important;
+      border-color: var(--brand-orange) !important;
+    }
+    html.light #btnExpandNavBar {
+      background-color: #FFFFFF !important;
+      border-color: #E2E8F0 !important;
+      color: var(--brand-orange) !important;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    /* Main Workspace & General Containers */
+    html.light #workspaceContainer,
+    html.light #view-dashboard,
+    html.light #view-city,
+    html.light #view-code,
+    html.light #view-radar,
+    html.light #view-api {
+      background-color: #F8FAFC !important;
+      color: #0F172A !important;
+    }
+
+    /* Global Background Utility Replacements */
+    html.light .bg-brand-dark {
+      background-color: #F8FAFC !important;
+    }
+    html.light .bg-brand-anthracite,
+    html.light .bg-brand-anthracite\/90,
+    html.light .bg-brand-anthracite\/70,
+    html.light .bg-brand-anthracite\/50,
+    html.light .bg-brand-anthracite\/95 {
+      background-color: #FFFFFF !important;
+      border-color: #E2E8F0 !important;
+    }
+    html.light .bg-brand-card,
+    html.light .bg-brand-card\/40,
+    html.light .bg-brand-card\/60,
+    html.light .bg-brand-card\/70,
+    html.light .bg-brand-card\/80,
+    html.light .bg-brand-card\/90,
+    html.light .bg-brand-card\/95 {
+      background-color: #FFFFFF !important;
+      border-color: #E2E8F0 !important;
+    }
+
+    /* Border Colors */
+    html.light .border-brand-border,
+    html.light .border-brand-border\/70,
+    html.light .border-brand-border\/60,
+    html.light .border-brand-border\/50,
+    html.light .border-brand-border\/40,
+    html.light .border-brand-border\/30,
+    html.light .border-zinc-800,
+    html.light .border-zinc-800\/80,
+    html.light .border-zinc-700,
+    html.light .border-zinc-700\/50,
+    html.light .border-zinc-600 {
+      border-color: #E2E8F0 !important;
+    }
+
+    /* Text Colors */
+    html.light .text-white {
+      color: #0F172A !important;
+    }
+    html.light .text-zinc-100,
+    html.light .text-zinc-200,
+    html.light .text-zinc-300 {
+      color: #1E293B !important;
+    }
+    html.light .text-zinc-400,
+    html.light .text-zinc-500 {
+      color: #64748B !important;
+    }
+    html.light .text-zinc-600 {
+      color: #94A3B8 !important;
+    }
+
+    /* Zinc Backgrounds */
+    html.light .bg-zinc-950,
+    html.light .bg-zinc-900,
+    html.light .bg-zinc-900\/90,
+    html.light .bg-zinc-900\/95,
+    html.light .bg-zinc-800,
+    html.light .bg-zinc-800\/80,
+    html.light .bg-zinc-800\/90,
+    html.light .bg-zinc-800\/60,
+    html.light .bg-zinc-800\/40,
+    html.light .bg-zinc-700\/50 {
+      background-color: #FFFFFF !important;
+      border-color: #E2E8F0 !important;
+      color: #0F172A !important;
+    }
+
+    html.light .bg-black\/60,
+    html.light .bg-black\/40,
+    html.light .bg-black\/50,
+    html.light .bg-black\/80 {
+      background-color: #F1F5F9 !important;
+    }
+
+    /* Hover States */
+    html.light .hover\:bg-brand-dark:hover {
+      background-color: #F1F5F9 !important;
+    }
+    html.light .hover\:bg-brand-card:hover {
+      background-color: #F8FAFC !important;
+    }
+    html.light .hover\:bg-zinc-800:hover,
+    html.light .hover\:bg-zinc-700:hover {
+      background-color: #E2E8F0 !important;
+    }
+    html.light .hover\:text-white:hover {
+      color: #0F172A !important;
+    }
+
+    /* =========================================================================
+       1. FILE EXPLORER & TREE (Clean White, Slate Text, Orange Brand Accent)
+       ========================================================================= */
+    html.light #explorerSidebar,
+    html.light #fileTreeSidebar,
+    html.light #fileExplorerContainer,
+    html.light #fileTreeContainer {
+      background-color: #FFFFFF !important;
+      border-color: #E2E8F0 !important;
+    }
+    html.light #explorerSidebar > div:first-child {
+      background-color: #F8FAFC !important;
+      border-color: #E2E8F0 !important;
+      color: #334155 !important;
+    }
+    html.light #fileCountBadge {
+      background-color: #F1F5F9 !important;
+      color: var(--brand-orange) !important;
+      border: 1px solid #E2E8F0 !important;
+    }
+    html.light #explorerSidebar button {
+      color: #64748B !important;
+    }
+    html.light #explorerSidebar button:hover {
+      background-color: #EDF2F7 !important;
+      color: #0F172A !important;
+    }
+    html.light #btnExpandExplorer {
+      background-color: rgba(255, 255, 255, 0.95) !important;
+      border-color: #CBD5E1 !important;
+      color: var(--brand-orange) !important;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+    }
+    html.light .folder-row {
+      color: #334155 !important;
+    }
+    html.light .folder-row:hover {
+      background-color: #EDF2F7 !important;
+      color: #0F172A !important;
+    }
+    html.light .folder-row .chevron-icon {
+      color: #64748B !important;
+    }
+    html.light .folder-row:hover .chevron-icon {
+      color: var(--brand-orange) !important;
+    }
+    html.light .file-tree-node {
+      color: #334155 !important;
+      border-left-color: transparent !important;
+    }
+    html.light .file-tree-node:hover {
+      background-color: #EDF2F7 !important;
+      color: #0F172A !important;
+    }
+    html.light .file-tree-node.bg-white\/10,
+    html.light .file-tree-node[class*="border-brand-orange"],
+    html.light .file-tree-node.active {
+      background-color: #EDF2F7 !important;
+      color: var(--brand-orange) !important;
+      border-left-color: var(--brand-orange) !important;
+      font-weight: 600 !important;
+    }
+
+    /* =========================================================================
+       2. 3D CODE-CITY CONTROLS, HUDS, TOOLBARS & INSPECTORS (Clean White/Glass)
+       ========================================================================= */
+    html.light #view-city {
+      background-color: #EDF2F7 !important;
+      color: #0F172A !important;
+    }
+    html.light #view-city .pointer-events-auto {
+      background-color: rgba(255, 255, 255, 0.95) !important;
+      border-color: #CBD5E1 !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+      color: #0F172A !important;
+    }
+    html.light #btnToggleCitySidebar {
+      background-color: #FFFFFF !important;
+      border-color: #CBD5E1 !important;
+      color: var(--brand-orange) !important;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
+    }
+    html.light #btnToggleCitySidebar:hover {
+      background-color: #EDF2F7 !important;
+      border-color: var(--brand-orange) !important;
+      color: var(--brand-orange) !important;
+    }
+    html.light #cityBuildingCountBadge {
+      background-color: rgba(99, 178, 47, 0.15) !important;
+      color: #15803D !important;
+      border-color: rgba(99, 178, 47, 0.3) !important;
+    }
+    html.light #citySummaryStats {
+      color: #64748B !important;
+    }
+    html.light #citySearchInput {
+      background-color: rgba(255, 255, 255, 0.95) !important;
+      border-color: #CBD5E1 !important;
+      color: #0F172A !important;
+    }
+    html.light #citySearchInput::placeholder {
+      color: #94A3B8 !important;
+    }
+
+    /* City Top Toolbar Buttons */
+    html.light #view-city .pointer-events-auto button {
+      background-color: #FFFFFF !important;
+      border-color: #CBD5E1 !important;
+      color: #334155 !important;
+    }
+    html.light #view-city .pointer-events-auto button:hover {
+      background-color: #EDF2F7 !important;
+      border-color: var(--brand-orange) !important;
+      color: #0F172A !important;
+    }
+    html.light #btnCityFlowToggle {
+      background-color: #FFFFFF !important;
+      border-color: #CBD5E1 !important;
+      color: #0F172A !important;
+    }
+    html.light #btnCityHighwaysToggle {
+      background-color: #F0F9FF !important;
+      border-color: #BAE6FD !important;
+      color: #0369A1 !important;
+    }
+    html.light #btnCityHighwaysToggle:hover {
+      background-color: #0284C7 !important;
+      color: #FFFFFF !important;
+    }
+    html.light #btnCityTrafficToggle {
+      background-color: #FFF7ED !important;
+      border-color: #FED7AA !important;
+      color: #C2410C !important;
+    }
+    html.light #btnCityTrafficToggle:hover {
+      background-color: var(--brand-orange) !important;
+      color: #000000 !important;
+    }
+    html.light #btnCityDecoToggle {
+      background-color: #F0FDF4 !important;
+      border-color: #BBF7D0 !important;
+      color: #15803D !important;
+    }
+    html.light #btnCityDecoToggle:hover {
+      background-color: #16A34A !important;
+      color: #FFFFFF !important;
+    }
+    html.light #btnCityLabelsToggle {
+      background-color: #FFFFFF !important;
+      border-color: #CBD5E1 !important;
+      color: #334155 !important;
+    }
+    html.light #btnCityLabelsToggle:hover {
+      background-color: #EDF2F7 !important;
+      border-color: var(--brand-orange) !important;
+      color: #0F172A !important;
+    }
+    html.light #btnCityThemeToggle {
+      background-color: #FFFFFF !important;
+      border-color: #CBD5E1 !important;
+      color: #334155 !important;
+    }
+    html.light #btnCityThemeToggle:hover {
+      background-color: #EDF2F7 !important;
+      border-color: var(--brand-orange) !important;
+      color: #0F172A !important;
+    }
+
+    /* City Collapsed Pull Tab */
+    html.light #btnCitySidebarPullTab {
+      background-color: rgba(255, 255, 255, 0.95) !important;
+      border-color: #CBD5E1 !important;
+      color: var(--brand-orange) !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    /* City Left Filter Sidebar */
+    html.light #cityFilterSidebar {
+      background-color: rgba(255, 255, 255, 0.96) !important;
+      border-color: #CBD5E1 !important;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1) !important;
+      color: #0F172A !important;
+    }
+    html.light #cityFilterSidebar > div:first-child {
+      background-color: #F8FAFC !important;
+      border-color: #E2E8F0 !important;
+      color: #0F172A !important;
+    }
+    html.light #cityFilterSidebar > div:first-child .bg-black\/60 {
+      background-color: #FFFFFF !important;
+      border-color: #CBD5E1 !important;
+    }
+    html.light #cityFilterSidebar > div:nth-child(2) {
+      background-color: #F1F5F9 !important;
+      border-color: #E2E8F0 !important;
+    }
+    html.light #cityFilterSidebar > div:nth-child(2) button {
+      background-color: #FFFFFF !important;
+      border-color: #CBD5E1 !important;
+      color: #334155 !important;
+    }
+    html.light #cityFilterSidebar > div:nth-child(2) button:hover {
+      background-color: #EDF2F7 !important;
+      color: #0F172A !important;
+    }
+    html.light #citySidebarSearchInput {
+      background-color: #FFFFFF !important;
+      border-color: #CBD5E1 !important;
+      color: #0F172A !important;
+    }
+    html.light #cityFilterSidebar .bg-brand-card\/40 {
+      background-color: #F8FAFC !important;
+      border-color: #E2E8F0 !important;
+    }
+    html.light #cityMinLocSlider {
+      background-color: #E2E8F0 !important;
+    }
+    html.light #cityLangFilterList label,
+    html.light #cityDistrictFilterList .flex.items-center {
+      color: #334155 !important;
+    }
+    html.light #cityLangFilterList label:hover,
+    html.light #cityDistrictFilterList .flex.items-center:hover {
+      background-color: #EDF2F7 !important;
+      color: #0F172A !important;
+    }
+    html.light #cityFilterSidebar input[type="checkbox"] {
+      background-color: #F8FAFC !important;
+      border-color: #CBD5E1 !important;
+    }
+    html.light #cityFilterSidebar > div:last-child {
+      background-color: #F8FAFC !important;
+      border-color: #E2E8F0 !important;
+      color: #64748B !important;
+    }
+
+    /* City Legend Bottom-Left */
+    html.light #cityLegendContainer,
+    html.light #view-city .absolute.bottom-3.left-3 {
+      background-color: rgba(255, 255, 255, 0.96) !important;
+      border-color: #CBD5E1 !important;
+      color: #0F172A !important;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
+    }
+    html.light #cityLegendContainer span,
+    html.light #view-city .absolute.bottom-3.left-3 span {
+      color: #334155 !important;
+    }
+    html.light #cityLegendContainer .border-brand-border\/40 {
+      border-color: #E2E8F0 !important;
+    }
+
+    /* City Hover Tooltip */
+    html.light #cityHoverTooltip {
+      background-color: rgba(255, 255, 255, 0.98) !important;
+      border-color: #CBD5E1 !important;
+      color: #0F172A !important;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12) !important;
+    }
+
+    /* City Selected Building Inspector Drawer */
+    html.light #cityInspectorDrawer {
+      background-color: rgba(255, 255, 255, 0.96) !important;
+      border-color: #CBD5E1 !important;
+      color: #0F172A !important;
+      box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.15) !important;
+    }
+    html.light #cityInspectorDrawer .bg-brand-card,
+    html.light #cityInspectorDrawer .bg-brand-card\/70,
+    html.light #cityInspectorDrawer .bg-brand-card\/40 {
+      background-color: #F8FAFC !important;
+      border-color: #E2E8F0 !important;
+      color: #334155 !important;
+    }
+    html.light #cityInspectorDrawer .bg-brand-dark {
+      background-color: #F1F5F9 !important;
+      border-color: #E2E8F0 !important;
+    }
+    html.light #cityDrawerFocusCamBtn,
+    html.light #cityDrawerMarkExplorerBtn {
+      background-color: #FFFFFF !important;
+      border-color: #CBD5E1 !important;
+      color: #0F172A !important;
+    }
+    html.light #cityDrawerFocusCamBtn:hover,
+    html.light #cityDrawerMarkExplorerBtn:hover {
+      background-color: #EDF2F7 !important;
+      border-color: var(--brand-orange) !important;
+    }
+
+    /* =========================================================================
+       3. CODE VIEWER, MARKDOWN & REVIEWS
+       ========================================================================= */
+    html.light #codeViewerContainer,
+    html.light #codeViewerScroll,
+    html.light #codeViewerScroll pre,
+    html.light #codeContent {
+      background-color: #FFFFFF !important;
+      color: #24292F !important;
+    }
+    html.light #lineNumbers {
+      background-color: #F8FAFC !important;
+      border-color: #E2E8F0 !important;
+      color: #64748B !important;
+    }
+    html.light .line-number {
+      color: #64748B !important;
+      border-color: #E2E8F0 !important;
+    }
+    html.light #view-code .h-10 {
+      background-color: #F8FAFC !important;
+      border-color: #E2E8F0 !important;
+      color: #0F172A !important;
+    }
+    html.light #codeViewerSymbolBar {
+      background-color: #FFFFFF !important;
+      border-color: #E2E8F0 !important;
+    }
+    html.light #codeViewerFilterTabs button {
+      background-color: #F8FAFC !important;
+      border: 1px solid #E2E8F0 !important;
+      color: #475569 !important;
+    }
+    html.light #codeViewerFilterTabs button:hover {
+      background-color: #EDF2F7 !important;
+      color: #0F172A !important;
+    }
+    html.light #codeViewerFilterTabs button.bg-brand-orange,
+    html.light #codeViewerFilterTabs button[class*="bg-brand-orange"] {
+      background-color: var(--brand-orange) !important;
+      color: #000000 !important;
+      border-color: var(--brand-orange) !important;
+    }
+    html.light #floatingSearchBar {
+      background-color: rgba(255, 255, 255, 0.98) !important;
+      border-color: #CBD5E1 !important;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12) !important;
+      color: #0F172A !important;
+    }
+    html.light #floatingSearchBar input {
+      background-color: #F8FAFC !important;
+      border-color: #CBD5E1 !important;
+      color: #0F172A !important;
+    }
+    html.light #floatingSearchBar button {
+      color: #64748B !important;
+    }
+    html.light #floatingSearchBar button:hover {
+      background-color: #EDF2F7 !important;
+      color: #0F172A !important;
+    }
+    html.light #codeViewerAIReviewBtn {
+      background-color: rgba(255, 255, 255, 0.95) !important;
+      border-color: var(--brand-orange) !important;
+      color: #0F172A !important;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08) !important;
+    }
+
+    /* Markdown preview */
+    html.light #markdownPreview {
+      background-color: #FFFFFF !important;
+      color: #1E293B !important;
+    }
+    html.light #markdownPreview h1,
+    html.light #markdownPreview h2,
+    html.light #markdownPreview h3,
+    html.light #markdownPreview h4 {
+      color: #0F172A !important;
+      border-color: #E2E8F0 !important;
+    }
+    html.light #markdownPreview blockquote {
+      background-color: #F8FAFC !important;
+      border-left-color: var(--brand-orange) !important;
+      color: #475569 !important;
+    }
+    html.light #markdownPreview table {
+      border-color: #E2E8F0 !important;
+    }
+    html.light #markdownPreview th {
+      background-color: #F1F5F9 !important;
+      color: #0F172A !important;
+    }
+    html.light #markdownPreview td {
+      border-color: #E2E8F0 !important;
+    }
+
+    /* Mindmap Inspector */
+    html.light #mindmapNodeInspector {
+      background-color: rgba(255, 255, 255, 0.96) !important;
+      border-color: #CBD5E1 !important;
+      color: #0F172A !important;
+      box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.15) !important;
+    }
+    html.light #mindmapNodeInspector .bg-brand-dark,
+    html.light #mindmapNodeInspector .bg-brand-dark\/95,
+    html.light #mindmapNodeInspector .bg-brand-dark\/50 {
+      background-color: #F8FAFC !important;
+      border-color: #E2E8F0 !important;
+      color: #1E293B !important;
+    }
+    html.light #inspectorCodePreviewSection .bg-\[\#0c0c0f\] {
+      background-color: #FFFFFF !important;
+      border-color: #E2E8F0 !important;
+    }
+    html.light #inspectorLineNumbers,
+    html.light #inspectorCodePreviewSection .bg-\[\#070709\] {
+      background-color: #F8FAFC !important;
+      border-color: #E2E8F0 !important;
+      color: #64748B !important;
+    }
+    html.light #inspectorCodeContent {
+      background-color: #FFFFFF !important;
+      color: #24292F !important;
+    }
+    html.light #inspectorAIResultCard {
+      background-color: #F8FAFC !important;
+      border-color: #CBD5E1 !important;
+      color: #0F172A !important;
+    }
+
+    /* Modals & AI Overlays */
+    html.light #settingsModal > div,
+    html.light #globalAIScanHUDModal > div,
+    html.light #aiCritiqueModal > div,
+    html.light #cmdPaletteModal > div {
+      background-color: rgba(255, 255, 255, 0.98) !important;
+      border-color: #CBD5E1 !important;
+      color: #0F172A !important;
+      box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.15) !important;
+    }
+    html.light #globalAIScanHUDModal .bg-\[\#0b0b0e\] {
+      background-color: #F8FAFC !important;
+      border-color: #E2E8F0 !important;
+    }
+    html.light #hudThoughtBubblesContainer .thought-bubble {
+      background-color: #FFFFFF !important;
+      border-color: var(--brand-orange) !important;
+      color: var(--brand-orange) !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+    }
+    html.light #hudLiveMetricsBox,
+    html.light #globalAIScanHUDModal .bg-brand-dark\/80,
+    html.light #globalAIScanHUDModal .bg-brand-dark\/90,
+    html.light #globalAIScanHUDModal .bg-brand-dark\/95,
+    html.light #globalAIScanHUDModal .bg-brand-dark {
+      background-color: #F8FAFC !important;
+      border-color: #E2E8F0 !important;
+      color: #0F172A !important;
+    }
+    html.light #hudScannedModulesList,
+    html.light #hudLiveReportContent {
+      color: #0F172A !important;
+    }
+    html.light #hudFinalReportSection {
+      background-color: #FFFFFF !important;
+      border-color: #CBD5E1 !important;
+    }
+    html.light #hudFinalReportSection .bg-brand-card {
+      background-color: #F8FAFC !important;
+    }
+    html.light #globalAIScanHUDModal button.bg-brand-dark,
+    html.light #settingsModal button.bg-brand-dark {
+      background-color: #FFFFFF !important;
+      border-color: #CBD5E1 !important;
+      color: #334155 !important;
+    }
+    html.light #globalAIScanHUDModal button.bg-brand-dark:hover,
+    html.light #settingsModal button.bg-brand-dark:hover {
+      background-color: #EDF2F7 !important;
+      color: #0F172A !important;
+    }
+    html.light #settingsModal .bg-brand-dark\/70,
+    html.light #settingsModal .bg-brand-dark {
+      background-color: #F8FAFC !important;
+      border-color: #E2E8F0 !important;
+    }
+
+    /* Risk Radar & Metric Cards */
+    html.light #riskRadarTable,
+    html.light .risk-card,
+    html.light .metric-card {
+      background-color: #FFFFFF !important;
+      border-color: #E2E8F0 !important;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.04) !important;
+    }
+
+    /* Semantic Intent & Function List Badges */
+    html.light .badge-semantic-auth {
+      background-color: #FEF2F2 !important;
+      color: #B91C1C !important;
+      border-color: #FECACA !important;
+    }
+    html.light .badge-semantic-api {
+      background-color: #FFF7ED !important;
+      color: #C2410C !important;
+      border-color: #FFEDD5 !important;
+    }
+    html.light .badge-semantic-data {
+      background-color: #FAF5FF !important;
+      color: #7E22CE !important;
+      border-color: #F3E8FF !important;
+    }
+    html.light .badge-semantic-ui {
+      background-color: #F0F9FF !important;
+      color: #0369A1 !important;
+      border-color: #E0F2FE !important;
+    }
+    html.light .badge-semantic-core {
+      background-color: #F0FDF4 !important;
+      color: #15803D !important;
+      border-color: #DCFCE7 !important;
+    }
+    html.light .badge-semantic-util {
+      background-color: #FEFCE8 !important;
+      color: #A16207 !important;
+      border-color: #FEF9C3 !important;
+    }
+    html.light .badge-semantic-lifecycle {
+      background-color: #FDF2F8 !important;
+      color: #BE185D !important;
+      border-color: #FCE7F3 !important;
+    }
+
+    /* Inputs, Selects, Textareas */
+    html.light input,
+    html.light select,
+    html.light textarea {
+      background-color: #F8FAFC !important;
+      border-color: #CBD5E1 !important;
+      color: #0F172A !important;
+    }
+    html.light input:focus,
+    html.light select:focus,
+    html.light textarea:focus {
+      border-color: var(--brand-orange) !important;
+      background-color: #FFFFFF !important;
+      box-shadow: 0 0 0 2px rgba(255, 128, 0, 0.2) !important;
+    }
+
+    /* Dropzone Empty State */
+    html.light #dropzoneView {
+      background-color: #F8FAFC !important;
+    }
+    html.light #dropzoneBox {
+      background-color: #FFFFFF !important;
+      border-color: #CBD5E1 !important;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05) !important;
+    }
+
+    /* Mindmap SVG links in light mode */
+    html.light .link {
+      stroke: #CBD5E1 !important;
+    }
+    html.light .node text {
+      fill: #1E293B !important;
+    }
+
+    /* Light Scrollbar */
+    html.light ::-webkit-scrollbar-track,
+    html.light .custom-scrollbar::-webkit-scrollbar-track {
+      background: #F1F5F9 !important;
+    }
+    html.light ::-webkit-scrollbar-thumb,
+    html.light .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #CBD5E1 !important;
+      border: 1px solid #E2E8F0 !important;
+    }
+    html.light ::-webkit-scrollbar-thumb:hover,
+    html.light .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+      background: var(--brand-orange) !important;
+    }
+
+    /* Prism.js Syntax Highlighting - Clean GitHub / One-Light */
+    html.light code[class*="language-"],
+    html.light pre[class*="language-"] {
+      color: #24292f !important;
+      text-shadow: none !important;
+    }
+    html.light .token.comment,
+    html.light .token.prolog,
+    html.light .token.doctype,
+    html.light .token.cdata {
+      color: #6e7781 !important;
+      font-style: italic;
+    }
+    html.light .token.punctuation {
+      color: #57606a !important;
+    }
+    html.light .token.property,
+    html.light .token.boolean,
+    html.light .token.number,
+    html.light .token.constant,
+    html.light .token.symbol {
+      color: #d97706 !important; /* Amber */
+    }
+    html.light .token.selector,
+    html.light .token.attr-name,
+    html.light .token.string,
+    html.light .token.char,
+    html.light .token.builtin,
+    html.light .token.inserted {
+      color: #16a34a !important; /* Emerald Green */
+    }
+    html.light .token.operator,
+    html.light .token.entity,
+    html.light .token.url {
+      color: #0284c7 !important; /* Sky Blue */
+    }
+    html.light .token.atrule,
+    html.light .token.attr-value,
+    html.light .token.keyword {
+      color: #7c3aed !important; /* Violet */
+      font-weight: 600;
+    }
+    html.light .token.function {
+      color: #ea580c !important; /* Signal Orange */
+      font-weight: 600;
+    }
+    html.light .token.class-name,
+    html.light .token.type,
+    html.light .token.struct,
+    html.light .token.interface {
+      color: #0891b2 !important; /* Cyan */
+      font-weight: 600;
+    }
+    html.light .token.tag,
+    html.light .token.deleted,
+    html.light .token.regex,
+    html.light .token.important,
+    html.light .token.variable {
+      color: #db2777 !important; /* Pink */
+    }
+    html.light .token.macro,
+    html.light .token.annotation,
+    html.light .token.decorator {
+      color: #9333ea !important;
+    }
+
+/* Pro Badge & Feature Gating Styles */
+.pro-badge-glow {
+  background: linear-gradient(135deg, #FF8000 0%, #FFA726 50%, #FFD54F 100%);
+  color: #000000;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  box-shadow: 0 0 10px rgba(255, 128, 0, 0.4);
+  animation: pulse-glow 2.5s infinite ease-in-out;
+}
+.pro-card-highlight {
+  border: 1px solid rgba(255, 128, 0, 0.5);
+  background: radial-gradient(circle at top left, rgba(255, 128, 0, 0.12), transparent 70%);
+}

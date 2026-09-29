@@ -23,6 +23,7 @@ import html
 import hashlib
 import zipfile
 import argparse
+import mimetypes
 import urllib.request
 import urllib.parse
 import urllib.error
@@ -1369,9 +1370,63 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
-        # Static UI Routes
+        # Static Assets Routes (/static/..., /assets/...)
+        if parsed_path.startswith("/static/") or parsed_path.startswith("/assets/"):
+            rel_path = parsed_path.lstrip("/")
+            file_path = (Path(__file__).parent / rel_path).resolve()
+            project_root = Path(__file__).parent.resolve()
+            
+            # Security: ensure requested path is within project root and is a file
+            if (project_root in file_path.parents or file_path == project_root) and file_path.is_file():
+                ext = file_path.suffix.lower()
+                if ext == ".js":
+                    mime_type = "text/javascript"
+                elif ext == ".css":
+                    mime_type = "text/css"
+                elif ext == ".json":
+                    mime_type = "application/json"
+                elif ext == ".svg":
+                    mime_type = "image/svg+xml"
+                elif ext in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+                    mime_type = f"image/{ext.lstrip('.')}"
+                elif ext == ".ico":
+                    mime_type = "image/x-icon"
+                elif ext == ".woff2":
+                    mime_type = "font/woff2"
+                elif ext == ".woff":
+                    mime_type = "font/woff"
+                elif ext == ".ttf":
+                    mime_type = "font/ttf"
+                else:
+                    mime_type, _ = mimetypes.guess_type(str(file_path))
+                    if not mime_type:
+                        mime_type = "application/octet-stream"
+                
+                if mime_type.startswith("text/") or mime_type in ["application/javascript", "application/json"]:
+                    if "charset" not in mime_type:
+                        mime_type += "; charset=utf-8"
+                
+                try:
+                    with open(file_path, "rb") as f:
+                        data = f.read()
+                    self._set_headers(200, mime_type)
+                    self.wfile.write(data)
+                    return
+                except Exception as e:
+                    self._set_headers(500, "text/plain")
+                    self.wfile.write(f"Error reading static file: {e}".encode("utf-8"))
+                    return
+            else:
+                self._set_headers(404, "text/plain")
+                self.wfile.write(b"Static asset not found.")
+                return
+
+        # Static UI HTML Routes
         if parsed_path in ["/", "/index.html", "/app", "/codebase_knowledge_base_app.html"] or parsed_path.startswith("/app"):
-            html_path = Path(__file__).parent / "codebase_knowledge_base_app.html"
+            html_path = Path(__file__).parent / "index.html"
+            if not html_path.exists():
+                html_path = Path(__file__).parent / "codebase_knowledge_base_app.html"
+            
             if html_path.exists():
                 with open(html_path, "r", encoding="utf-8") as f:
                     content = f.read().encode("utf-8")
@@ -1379,7 +1434,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 self.wfile.write(content)
             else:
                 self._set_headers(404, "text/plain")
-                self.wfile.write(b"codebase_knowledge_base_app.html not found.")
+                self.wfile.write(b"index.html not found.")
             return
 
         # System & Engine Status
