@@ -10,6 +10,8 @@ services:
     restart: unless-stopped
     ports:
       - "8084:8084"
+    env_file:
+      - .env
     environment:
       - PORT=8084
       - LLM_URL=${LLM_URL:-http://localhost:11434/v1/chat/completions}
@@ -24,6 +26,10 @@ services:
       - DB_NAME=${DB_NAME:-AnalyzerDB}
       - SQLITE_DB_PATH=/workspace/analyzer.db
       - AUTH_SECRET=${SUPER_SALT:-${AUTH_SECRET:-corenow-analyzer-production-secret-9988}}
+      # GitHub SSO OAuth Credentials
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
+      - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI:-}
     volumes:
       # Mount target codebase directory to /workspace
       - .:/workspace

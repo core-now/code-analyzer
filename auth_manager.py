@@ -10,9 +10,79 @@ import base64
 import hmac
 import hashlib
 from typing import Dict, Any, Optional
+from pathlib import Path
+
+
+def load_environment_variables(env_path: Optional[str] = None) -> bool:
+    """Loads environment variables from .env files across multiple candidate locations.
+    
+    Searches:
+    1. Explicit env_path (if provided)
+    2. Current working directory (.env)
+    3. Directory of this script (.env)
+    4. Workspace directory (/workspace/.env or WORKSPACE_DIR)
+    5. Parent directory of script / workspace
+    
+    Uses python-dotenv if installed, otherwise uses built-in parser fallback.
+    """
+    candidate_paths = []
+    if env_path:
+        candidate_paths.append(Path(env_path).resolve())
+
+    cwd_env = (Path.cwd() / ".env").resolve()
+    script_env = (Path(__file__).resolve().parent / ".env").resolve()
+    workspace_dir = os.environ.get("WORKSPACE_DIR", "/workspace")
+    workspace_env = (Path(workspace_dir) / ".env").resolve()
+    parent_env = (Path(__file__).resolve().parent.parent / ".env").resolve()
+
+    for p in [cwd_env, script_env, workspace_env, parent_env]:
+        if p not in candidate_paths:
+            candidate_paths.append(p)
+
+    loaded_any = False
+    for p in candidate_paths:
+        try:
+            if p.is_file():
+                # 1. Try python-dotenv first
+                try:
+                    from dotenv import load_dotenv
+                    load_dotenv(p, override=False)
+                    loaded_any = True
+                except ImportError:
+                    # 2. Robust fallback parser without external dependencies
+                    with open(p, "r", encoding="utf-8", errors="replace") as f:
+                        for line in f:
+                            line = line.strip()
+                            if not line or line.startswith("#"):
+                                continue
+                            if line.startswith("export "):
+                                line = line[7:].strip()
+                            if "=" in line:
+                                key, _, val = line.partition("=")
+                                key = key.strip()
+                                val = val.strip()
+                                if (val.startswith('"') and val.endswith('"')) or (val.startswith("'") and val.endswith("'")):
+                                    val = val[1:-1]
+                                if key and key not in os.environ:
+                                    os.environ[key] = val
+                    loaded_any = True
+        except Exception:
+            pass
+
+    return loaded_any
+
+
+# Load environment variables on module import
+load_environment_variables()
+
+
+def get_auth_secret() -> str:
+    """Returns the effective AUTH_SECRET from environment or fallback."""
+    return os.environ.get("AUTH_SECRET") or os.environ.get("SUPER_SALT") or "corenow-antigravity-analyzer-secret-key-9988"
+
 
 # Secret key for JWT signing & password salt
-AUTH_SECRET = os.environ.get("AUTH_SECRET") or os.environ.get("SUPER_SALT") or "corenow-antigravity-analyzer-secret-key-9988"
+AUTH_SECRET = get_auth_secret()
 JWT_EXPIRATION_SECONDS = int(os.environ.get("JWT_EXPIRATION_SECONDS", "86400"))  # 24 Hours
 
 # Check optional bcrypt
@@ -63,7 +133,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
                 return hmac.compare_digest(stored_kdf, calc_kdf)
 
         # Legacy simple sha256 check
-        calc = hashlib.sha256((AUTH_SECRET + plain_password).encode("utf-8")).hexdigest()
+        calc = hashlib.sha256((get_auth_secret() + plain_password).encode("utf-8")).hexdigest()
         return hmac.compare_digest(calc, hashed_password)
     except Exception:
         return False
@@ -71,13 +141,14 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_jwt_token(payload: Dict[str, Any], expires_in: int = JWT_EXPIRATION_SECONDS) -> str:
     """Generates a JWT token signed with HMAC-SHA256."""
+    secret = get_auth_secret()
     token_payload = dict(payload)
     now = int(time.time())
     token_payload["iat"] = now
     token_payload["exp"] = now + expires_in
 
     if PYJWT_AVAILABLE:
-        return jwt.encode(token_payload, AUTH_SECRET, algorithm="HS256")
+        return jwt.encode(token_payload, secret, algorithm="HS256")
 
     # Pure Python JWT implementation
     header = {"alg": "HS256", "typ": "JWT"}
@@ -85,7 +156,7 @@ def create_jwt_token(payload: Dict[str, Any], expires_in: int = JWT_EXPIRATION_S
     payload_b64 = base64.urlsafe_b64encode(json.dumps(token_payload, separators=(",", ":")).encode("utf-8")).decode("utf-8").rstrip("=")
 
     signing_input = f"{header_b64}.{payload_b64}"
-    signature = hmac.new(AUTH_SECRET.encode("utf-8"), signing_input.encode("utf-8"), hashlib.sha256).digest()
+    signature = hmac.new(secret.encode("utf-8"), signing_input.encode("utf-8"), hashlib.sha256).digest()
     signature_b64 = base64.urlsafe_b64encode(signature).decode("utf-8").rstrip("=")
 
     return f"{signing_input}.{signature_b64}"
@@ -96,9 +167,11 @@ def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
     if not token:
         return None
 
+    secret = get_auth_secret()
+
     if PYJWT_AVAILABLE:
         try:
-            return jwt.decode(token, AUTH_SECRET, algorithms=["HS256"])
+            return jwt.decode(token, secret, algorithms=["HS256"])
         except Exception:
             return None
 
@@ -111,7 +184,7 @@ def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
 
         # Verify signature
         signing_input = f"{header_b64}.{payload_b64}"
-        expected_sig = hmac.new(AUTH_SECRET.encode("utf-8"), signing_input.encode("utf-8"), hashlib.sha256).digest()
+        expected_sig = hmac.new(secret.encode("utf-8"), signing_input.encode("utf-8"), hashlib.sha256).digest()
         
         # Base64 decode signature_b64 with padding
         rem = len(signature_b64) % 4
