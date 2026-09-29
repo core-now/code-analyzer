@@ -1233,10 +1233,11 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
         return None
 
     def do_GET(self):
+        parsed = urlparse(self.path)
+        parsed_path = parsed.path
 
         # Git Tree API
-        if self.path.startswith("/api/git/tree"):
-            parsed = urlparse(self.path)
+        if parsed_path.startswith("/api/git/tree"):
             query = parse_qs(parsed.query)
             url = query.get("url", [""])[0].strip()
             branch = query.get("branch", ["main"])[0].strip()
@@ -1343,8 +1344,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             return
 
         # Git Raw Content API
-        if self.path.startswith("/api/git/raw"):
-            parsed = urlparse(self.path)
+        if parsed_path.startswith("/api/git/raw"):
             query = parse_qs(parsed.query)
             url = query.get("url", [""])[0].strip()
             token = query.get("token", [""])[0].strip()
@@ -1368,8 +1368,9 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
+
         # Static UI Routes
-        if self.path == "/" or self.path.startswith("/app"):
+        if parsed_path in ["/", "/index.html", "/app", "/codebase_knowledge_base_app.html"] or parsed_path.startswith("/app"):
             html_path = Path(__file__).parent / "codebase_knowledge_base_app.html"
             if html_path.exists():
                 with open(html_path, "r", encoding="utf-8") as f:
@@ -1382,7 +1383,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             return
 
         # System & Engine Status
-        if self.path == "/api/status":
+        if parsed_path == "/api/status":
             self._set_headers(200)
             self.wfile.write(json.dumps({
                 "status": "running",
@@ -1397,7 +1398,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             return
 
         # Auth: Configuration / Feature flags
-        if self.path == "/api/auth/config":
+        if parsed_path == "/api/auth/config":
             self._set_headers(200)
             self.wfile.write(json.dumps({
                 "github_oauth_enabled": is_github_oauth_configured(),
@@ -1406,7 +1407,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             return
 
         # Auth: GitHub OAuth Initiate
-        if self.path.startswith("/api/auth/github") and not self.path.startswith("/api/auth/github/callback"):
+        if parsed_path.startswith("/api/auth/github") and not parsed_path.startswith("/api/auth/github/callback"):
             if not is_github_oauth_configured():
                 self._set_headers(400, "application/json")
                 self.wfile.write(json.dumps({
@@ -1432,8 +1433,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             return
 
         # Auth: GitHub OAuth Callback
-        if self.path.startswith("/api/auth/github/callback"):
-            parsed = urlparse(self.path)
+        if parsed_path.startswith("/api/auth/github/callback"):
             query = parse_qs(parsed.query)
             code = query.get("code", [""])[0].strip()
             error_param = query.get("error_description", [""])[0] or query.get("error", [""])[0]
@@ -1554,7 +1554,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             return
 
         # Auth: Current User
-        if self.path == "/api/auth/me":
+        if parsed_path == "/api/auth/me":
             user = self._get_authenticated_user()
             if not user:
                 self._set_headers(401)
@@ -1573,7 +1573,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             return
 
         # Projects: List user & public projects
-        if self.path == "/api/projects":
+        if parsed_path == "/api/projects":
             user = self._get_authenticated_user()
             user_id = user["id"] if user else None
             projects = KnowledgeBaseServer.db.list_projects(user_id=user_id)
@@ -1582,8 +1582,8 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             return
 
         # Project Detail: /api/projects/{id}
-        if self.path.startswith("/api/projects/"):
-            parts = self.path.strip("/").split("/")
+        if parsed_path.startswith("/api/projects/"):
+            parts = parsed_path.strip("/").split("/")
             if len(parts) == 3 and parts[1] == "projects":
                 project_id = parts[2]
                 user = self._get_authenticated_user()
@@ -1598,8 +1598,8 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 return
 
         # Public Share: /api/share/{token}
-        if self.path.startswith("/api/share/"):
-            parts = self.path.strip("/").split("/")
+        if parsed_path.startswith("/api/share/"):
+            parts = parsed_path.strip("/").split("/")
             if len(parts) == 3 and parts[1] == "share":
                 token = parts[2]
                 project = KnowledgeBaseServer.db.get_project_by_share_token(token)
@@ -1612,7 +1612,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 return
 
         # Legacy / Memory Analysis Cache Export
-        if self.path == "/api/analysis" or self.path == "/api/export-results":
+        if parsed_path in ["/api/analysis", "/api/export-results"]:
             if KnowledgeBaseServer.cached_analysis:
                 self._set_headers(200)
                 self.wfile.write(json.dumps(KnowledgeBaseServer.cached_analysis).encode("utf-8"))
@@ -1621,7 +1621,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": "No codebase scanned yet."}).encode("utf-8"))
             return
 
-        if self.path == "/api/cache":
+        if parsed_path == "/api/cache":
             cache_file = Path(DEFAULT_CACHE_FILE)
             if cache_file.exists():
                 try:
@@ -1642,11 +1642,13 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
         self.wfile.write(b'{"error": "Endpoint not found"}')
 
     def do_POST(self):
+        parsed = urlparse(self.path)
+        parsed_path = parsed.path
         content_length = int(self.headers.get("Content-Length", 0))
         post_data = self.rfile.read(content_length)
 
         # 1. Auth: Register
-        if self.path == "/api/auth/register":
+        if parsed_path == "/api/auth/register":
             try:
                 body = json.loads(post_data.decode("utf-8")) if post_data else {}
                 username = body.get("username", "").strip()
@@ -1685,7 +1687,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             return
 
         # 2. Auth: Login
-        if self.path == "/api/auth/login":
+        if parsed_path == "/api/auth/login":
             try:
                 body = json.loads(post_data.decode("utf-8")) if post_data else {}
                 identifier = body.get("username") or body.get("email") or ""
@@ -1720,13 +1722,13 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             return
 
         # 3. Auth: Logout
-        if self.path == "/api/auth/logout":
+        if parsed_path == "/api/auth/logout":
             self._set_headers(200)
             self.wfile.write(json.dumps({"success": True, "message": "Logged out successfully"}).encode("utf-8"))
             return
 
         # 4. Project: Create / Save Project & Snapshot
-        if self.path == "/api/projects":
+        if parsed_path == "/api/projects":
             try:
                 user = self._get_authenticated_user()
                 if not user:
@@ -1762,7 +1764,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             return
 
         # 5. Project: Share Token generation /api/projects/{id}/share
-        if self.path.startswith("/api/projects/") and self.path.endswith("/share"):
+        if parsed_path.startswith("/api/projects/") and parsed_path.endswith("/share"):
             try:
                 user = self._get_authenticated_user()
                 if not user:
@@ -1770,7 +1772,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                     self.wfile.write(json.dumps({"error": "Authentication required."}).encode("utf-8"))
                     return
 
-                parts = self.path.strip("/").split("/")
+                parts = parsed_path.strip("/").split("/")
                 project_id = parts[2]
                 share_token = KnowledgeBaseServer.db.create_or_get_share_token(project_id, user["id"])
                 if not share_token:
@@ -1790,7 +1792,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             return
 
         # 6. Scanners and LLM batch APIs
-        if self.path == "/api/scan-local":
+        if parsed_path == "/api/scan-local":
             try:
                 body = json.loads(post_data.decode("utf-8")) if post_data else {}
                 target_dir = body.get("path", str(Path.cwd()))
@@ -1805,7 +1807,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
-        if self.path == "/api/scan-zip":
+        if parsed_path == "/api/scan-zip":
             try:
                 scanner = CodebaseScanner()
                 analysis = scanner.scan_zip(post_data, project_name="Uploaded_Archive")
@@ -1817,7 +1819,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
-        if self.path == "/api/batch-analysis" or self.path == "/api/llm-batch":
+        if parsed_path in ["/api/batch-analysis", "/api/llm-batch"]:
             try:
                 body = json.loads(post_data.decode("utf-8"))
                 batch_data = body.get("batch", {})
@@ -1830,7 +1832,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
-        if self.path == "/api/import-results":
+        if parsed_path == "/api/import-results":
             try:
                 data = json.loads(post_data.decode("utf-8"))
                 KnowledgeBaseServer.cached_analysis = data
@@ -1841,7 +1843,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
-        if self.path == "/api/cache":
+        if parsed_path == "/api/cache":
             try:
                 data = json.loads(post_data.decode("utf-8"))
                 with open(DEFAULT_CACHE_FILE, "w", encoding="utf-8") as f:
@@ -1853,7 +1855,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
 
-        if self.path == "/api/llm-critique":
+        if parsed_path == "/api/llm-critique":
             try:
                 body = json.loads(post_data.decode("utf-8"))
                 result = KnowledgeBaseServer.llm.analyze_summary(body)
@@ -1865,7 +1867,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             return
 
         self._set_headers(404)
-        self.wfile.write(b'{"error": "Not Found"}')
+        self.wfile.write(b'{"error": "Endpoint not found"}')
 
 
 def main():

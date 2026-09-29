@@ -2992,19 +2992,37 @@
 
     function checkUrlAuthParams() {
       const params = new URLSearchParams(window.location.search);
+      let stateChanged = false;
+
+      if (params.has('token')) {
+        const tokenVal = params.get('token');
+        if (tokenVal) {
+          localStorage.setItem('corenow_auth_token', tokenVal);
+          authState.token = tokenVal;
+        }
+        params.delete('token');
+        stateChanged = true;
+      }
+
       if (params.has('login_success')) {
         showToast('🐱 Erfolgreich mit GitHub angemeldet!', 'success');
-        const url = new URL(window.location);
-        url.searchParams.delete('login_success');
-        window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : ''));
-        checkAuthSession();
+        params.delete('login_success');
+        stateChanged = true;
       }
+
       if (params.has('auth_error')) {
         const err = params.get('auth_error');
         showToast('GitHub Login fehlgeschlagen: ' + err, 'error');
-        const url = new URL(window.location);
-        url.searchParams.delete('auth_error');
-        window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : ''));
+        params.delete('auth_error');
+        stateChanged = true;
+      }
+
+      if (stateChanged) {
+        authState.token = localStorage.getItem('corenow_auth_token') || null;
+        const newSearch = params.toString();
+        const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
+        window.history.replaceState({}, document.title, newUrl);
+        checkAuthSession();
       }
     }
 
