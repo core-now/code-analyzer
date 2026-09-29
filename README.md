@@ -8,7 +8,7 @@
 Ein ganzheitliches, KI-gestütztes Tool zur statischen Code-Analyse, 3D-Metropolen-Visualisierung (Three.js), AST-Klassifikation und tiefgehenden Architektur-Audits mit lokalen LLMs.
 
 ---
-![image]("assets/matrix-city.svg")
+![image]("assets/ai-matrix-city.svg")
 
 ## 🌟 Hauptfunktionen & Features
 
