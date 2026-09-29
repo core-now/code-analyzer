@@ -9,15 +9,36 @@ BEGIN
         [id] NVARCHAR(64) NOT NULL PRIMARY KEY,
         [username] NVARCHAR(100) NOT NULL UNIQUE,
         [email] NVARCHAR(255) NOT NULL UNIQUE,
-        [password_hash] NVARCHAR(255) NOT NULL,
+        [password_hash] NVARCHAR(255) NULL,
         [role] NVARCHAR(50) NOT NULL DEFAULT 'developer',
         [is_active] BIT NOT NULL DEFAULT 1,
         [created_at] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-        [last_login] DATETIME2 NULL
+        [last_login] DATETIME2 NULL,
+        [github_id] NVARCHAR(100) NULL,
+        [avatar_url] NVARCHAR(500) NULL
     );
 
     CREATE INDEX [IX_users_username] ON [dbo].[users]([username]);
     CREATE INDEX [IX_users_email] ON [dbo].[users]([email]);
+    CREATE UNIQUE INDEX [IX_users_github_id] ON [dbo].[users]([github_id]) WHERE [github_id] IS NOT NULL;
+END
+ELSE
+BEGIN
+    -- Auto-migration for existing tables
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[users]') AND name = 'github_id')
+    BEGIN
+        ALTER TABLE [dbo].[users] ADD [github_id] NVARCHAR(100) NULL;
+        CREATE UNIQUE INDEX [IX_users_github_id] ON [dbo].[users]([github_id]) WHERE [github_id] IS NOT NULL;
+    END
+    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[users]') AND name = 'avatar_url')
+    BEGIN
+        ALTER TABLE [dbo].[users] ADD [avatar_url] NVARCHAR(500) NULL;
+    END
+    BEGIN TRY
+        ALTER TABLE [dbo].[users] ALTER COLUMN [password_hash] NVARCHAR(255) NULL;
+    END TRY
+    BEGIN CATCH
+    END CATCH
 END
 GO
 

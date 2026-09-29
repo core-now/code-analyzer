@@ -1503,9 +1503,22 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 avatar_url=gh_profile.get("avatar_url", "")
             )
             if not user:
-                err_msg = "Datenbankfehler beim Speichern des GitHub-Benutzers."
+                db_err = getattr(KnowledgeBaseServer.db, "last_error", "") or "Unbekannter Fehler bei der Benutzerspeicherung"
+                err_msg = f"Datenbankfehler beim Speichern des GitHub-Benutzers: {db_err}"
+                html_resp = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>Datenbankfehler</title></head>
+<body style="background:#0b0b0e;color:#f43f5e;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <div style="text-align:center;padding:2rem;background:#18181b;border:1px solid #e11d48;border-radius:12px;max-width:480px;box-shadow:0 0 25px rgba(225,29,72,0.2);">
+    <h3 style="color:#fb7185;margin-bottom:0.5rem;">Datenbankfehler</h3>
+    <p style="color:#a1a1aa;font-size:13px;margin-bottom:1rem;">Beim Speichern des GitHub-Benutzers ist ein Fehler aufgetreten:</p>
+    <pre style="background:#09090b;color:#f87171;padding:12px;border-radius:8px;font-size:11px;text-align:left;overflow-x:auto;white-space:pre-wrap;word-break:break-all;border:1px solid #27272a;">{html.escape(db_err)}</pre>
+    <a href="/?auth_error={urllib.parse.quote('Datenbankfehler beim Speichern')}" style="display:inline-block;padding:8px 18px;background:#e11d48;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px;margin-top:14px;">Zurück zur App</a>
+  </div>
+</body>
+</html>"""
                 self._set_headers(500, "text/html; charset=utf-8")
-                self.wfile.write(f"<h3>{err_msg}</h3>".encode("utf-8"))
+                self.wfile.write(html_resp.encode("utf-8"))
                 return
 
             jwt_token = create_jwt_token({"user_id": user["id"], "username": user["username"]})
