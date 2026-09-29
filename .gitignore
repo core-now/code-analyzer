@@ -24,6 +24,11 @@ __pycache__/
 *.pyd
 *.pyo
 
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
 # Python virtual environments
 .venv/
 venv/

@@ -166,6 +166,46 @@
       animation: selectionGlowPulse 2s infinite ease-in-out;
     }
 
+    /* District & Folder Sidebar Interactive Neon Highlight & Pulse (#D9FF3D / #63B22F) */
+    @keyframes districtNeonPulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(217, 255, 61, 0.7), inset 0 0 8px rgba(99, 178, 47, 0.4);
+        border-color: #D9FF3D;
+        background-color: rgba(217, 255, 61, 0.16);
+      }
+      50% {
+        box-shadow: 0 0 14px 2px rgba(217, 255, 61, 0.9), inset 0 0 14px rgba(99, 178, 47, 0.6);
+        border-color: #63B22F;
+        background-color: rgba(99, 178, 47, 0.28);
+      }
+      100% {
+        box-shadow: 0 0 0 0 rgba(217, 255, 61, 0), inset 0 0 8px rgba(99, 178, 47, 0.4);
+        border-color: #D9FF3D;
+        background-color: rgba(217, 255, 61, 0.16);
+      }
+    }
+    .district-sidebar-highlight {
+      position: relative !important;
+      border: 1.5px solid #D9FF3D !important;
+      border-radius: 6px !important;
+      animation: districtNeonPulse 2s infinite ease-in-out !important;
+      color: #FFFFFF !important;
+      z-index: 10 !important;
+    }
+    .district-sidebar-highlight span {
+      color: #D9FF3D !important;
+      font-weight: 700 !important;
+    }
+    html.light .district-sidebar-highlight {
+      border: 1.5px solid #63B22F !important;
+      background-color: rgba(99, 178, 47, 0.18) !important;
+      box-shadow: 0 0 10px rgba(99, 178, 47, 0.45) !important;
+    }
+    html.light .district-sidebar-highlight span {
+      color: #15803d !important;
+      font-weight: 700 !important;
+    }
+
     /* =========================================================================
        COMPREHENSIVE LIGHT THEME STYLING OVERRIDES (html.light / body.light)
        Covers all views, components, headers, sidebars, explorer, code-viewer,
@@ -10989,32 +11029,55 @@ class CodeCityMetropolis {
             const isCollapsed = this.collapsedDistricts.has(node.path);
 
             let html = `
-              <div class="district-tree-node space-y-0.5 ${node.depth > 0 ? 'ml-3 pl-1.5 border-l border-brand-border/40' : ''}">
-                <div class="flex items-center justify-between p-1 rounded hover:bg-brand-card text-xs group transition">
+              <div class="district-tree-node space-y-0.5 ${node.depth > 0 ? 'ml-3 pl-1.5 border-l border-brand-border/40' : ''}" data-district-path="${escapeHtml(node.path)}">
+                <div class="district-item-row flex items-center justify-between p-1 rounded hover:bg-brand-card text-xs group transition cursor-pointer select-none"
+                     data-district-row="${escapeHtml(node.path)}"
+                     onclick="window.codeCityApp && window.codeCityApp.onDistrictRowClick(event, '${escapeJsString(node.path)}')">
                   <div class="flex items-center space-x-1.5 truncate flex-1 min-w-0">
-                    ${hasChildren ? `
-                      <button onclick="window.codeCityApp && window.codeCityApp.toggleDistrictCollapse('${escapeJsString(node.path)}')" class="p-0.5 text-zinc-500 hover:text-white rounded">
+                    ${(hasChildren || (node.files && node.files.length > 0)) ? `
+                      <button onclick="event.stopPropagation(); window.codeCityApp && window.codeCityApp.toggleDistrictCollapse('${escapeJsString(node.path)}')" class="p-0.5 text-zinc-500 hover:text-white rounded hover:bg-brand-dark transition">
                         <i data-lucide="${isCollapsed ? 'chevron-right' : 'chevron-down'}" class="w-3 h-3"></i>
                       </button>
                     ` : '<span class="w-4"></span>'}
-                    <input type="checkbox" data-district="${escapeHtml(node.path)}" checked onchange="window.codeCityApp && window.codeCityApp.onDistrictCheckboxChange(this)" class="rounded border-zinc-700 bg-zinc-900 text-brand-orange focus:ring-brand-orange focus:ring-offset-0 cursor-pointer">
+                    <input type="checkbox" data-district="${escapeHtml(node.path)}" ${this.activeDistricts.has(node.path) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="window.codeCityApp && window.codeCityApp.onDistrictCheckboxChange(this)" class="rounded border-zinc-700 bg-zinc-900 text-brand-orange focus:ring-brand-orange focus:ring-offset-0 cursor-pointer">
                     <i data-lucide="${isRoot ? 'cpu' : (hasChildren ? 'folder-tree' : 'folder')}" class="w-3 h-3 ${isRoot ? 'text-[#D9FF3D]' : 'text-brand-orange'} flex-shrink-0"></i>
                     <span class="text-zinc-200 truncate ${isRoot ? 'font-bold text-[#D9FF3D]' : ''}" title="${escapeHtml(node.path)}">${escapeHtml(shortName)}</span>
                   </div>
                   <div class="flex items-center space-x-1 flex-shrink-0 ml-1">
                     <span class="text-zinc-500 font-mono text-[10px]">(${fileCount})</span>
-                    <button onclick="window.codeCityApp && window.codeCityApp.focusDistrict('${escapeJsString(node.path)}')" title="Bezirk fokussieren" class="p-1 text-zinc-500 hover:text-white rounded hover:bg-brand-dark transition opacity-0 group-hover:opacity-100">
+                    <button onclick="event.stopPropagation(); window.codeCityApp && window.codeCityApp.focusDistrict('${escapeJsString(node.path)}')" title="Bezirk fokussieren" class="p-1 text-zinc-500 hover:text-white rounded hover:bg-brand-dark transition opacity-0 group-hover:opacity-100">
                       <i data-lucide="crosshair" class="w-3 h-3"></i>
                     </button>
                   </div>
                 </div>
             `;
 
-            if (hasChildren && !isCollapsed) {
+            if (!isCollapsed) {
               html += `<div class="space-y-0.5">`;
-              node.children.forEach(child => {
-                html += renderDistrictTreeNode(child);
-              });
+              if (hasChildren) {
+                node.children.forEach(child => {
+                  html += renderDistrictTreeNode(child);
+                });
+              }
+              if (node.files && node.files.length > 0) {
+                node.files.forEach(f => {
+                  const fLang = f.language || 'Default';
+                  const fHex = '#' + this.getLanguageColor(fLang, f.path).toString(16).padStart(6, '0');
+                  const fName = f.path.split('/').pop();
+                  html += `
+                    <div class="district-file-item flex items-center justify-between p-1 pl-5 rounded hover:bg-brand-card text-[11px] group transition cursor-pointer text-zinc-300 hover:text-white select-none"
+                         data-file-path="${escapeHtml(f.path)}"
+                         data-parent-district="${escapeHtml(node.path)}"
+                         onclick="event.stopPropagation(); window.codeCityApp && window.codeCityApp.selectBuildingByPath('${escapeJsString(f.path)}')">
+                      <div class="flex items-center space-x-1.5 truncate flex-1 min-w-0">
+                        <span class="w-2 h-2 rounded-full flex-shrink-0 shadow-sm" style="background-color: ${fHex};"></span>
+                        <span class="truncate font-mono text-zinc-300 group-hover:text-white" title="${escapeHtml(f.path)}">${escapeHtml(fName)}</span>
+                      </div>
+                      <span class="text-zinc-500 font-mono text-[9px] flex-shrink-0 ml-1">${f.code_lines || f.total_lines || 0} LOC</span>
+                    </div>
+                  `;
+                });
+              }
               html += `</div>`;
             }
 

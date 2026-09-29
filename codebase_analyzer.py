@@ -19,10 +19,12 @@ import json
 import re
 import io
 import time
+import html
 import hashlib
 import zipfile
 import argparse
 import urllib.request
+import urllib.parse
 import urllib.error
 from urllib.parse import urlparse, parse_qs
 from http.server import HTTPServer, BaseHTTPRequestHandler
@@ -36,7 +38,15 @@ except ImportError:
     pass
 
 from db_manager import DatabaseManager
-from auth_manager import hash_password, verify_password, create_jwt_token, decode_jwt_token
+from auth_manager import (
+    hash_password,
+    verify_password,
+    create_jwt_token,
+    decode_jwt_token,
+    is_github_oauth_configured,
+    exchange_github_code_for_token,
+    fetch_github_user_profile
+)
 
 # UTF-8 Configuration for Windows PowerShell / CMD
 if sys.platform.startswith("win"):
@@ -1386,6 +1396,150 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             }).encode("utf-8"))
             return
 
+        # Auth: Configuration / Feature flags
+        if self.path == "/api/auth/config":
+            self._set_headers(200)
+            self.wfile.write(json.dumps({
+                "github_oauth_enabled": is_github_oauth_configured(),
+                "github_client_id_set": bool(os.environ.get("GITHUB_CLIENT_ID", "").strip())
+            }).encode("utf-8"))
+            return
+
+        # Auth: GitHub OAuth Initiate
+        if self.path.startswith("/api/auth/github") and not self.path.startswith("/api/auth/github/callback"):
+            client_id = os.environ.get("GITHUB_CLIENT_ID", "").strip()
+            if not client_id:
+                self._set_headers(400, "application/json")
+                self.wfile.write(json.dumps({
+                    "error": "GitHub SSO ist nicht konfiguriert. Bitte hinterlege GITHUB_CLIENT_ID und GITHUB_CLIENT_SECRET in der .env Datei."
+                }).encode("utf-8"))
+                return
+
+            host = self.headers.get("Host", f"localhost:{DEFAULT_PORT}")
+            proto = "https" if self.headers.get("X-Forwarded-Proto") == "https" else "http"
+            redirect_uri = os.environ.get("GITHUB_REDIRECT_URI") or f"{proto}://{host}/api/auth/github/callback"
+
+            auth_url = (
+                f"https://github.com/login/oauth/authorize?"
+                f"client_id={urllib.parse.quote(client_id)}&"
+                f"scope={urllib.parse.quote('read:user user:email')}&"
+                f"redirect_uri={urllib.parse.quote(redirect_uri)}"
+            )
+
+            self.send_response(302)
+            self.send_header("Location", auth_url)
+            self.end_headers()
+            return
+
+        # Auth: GitHub OAuth Callback
+        if self.path.startswith("/api/auth/github/callback"):
+            parsed = urlparse(self.path)
+            query = parse_qs(parsed.query)
+            code = query.get("code", [""])[0].strip()
+            error_param = query.get("error_description", [""])[0] or query.get("error", [""])[0]
+
+            if error_param or not code:
+                err_msg = error_param or "Kein Autorisierungscode von GitHub empfangen."
+                html_resp = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>GitHub Login Fehler</title></head>
+<body style="background:#0b0b0e;color:#f43f5e;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <div style="text-align:center;padding:2rem;background:#18181b;border:1px solid #e11d48;border-radius:12px;max-width:420px;">
+    <h3 style="color:#fb7185;margin-bottom:0.5rem;">GitHub Login fehlgeschlagen</h3>
+    <p style="color:#a1a1aa;font-size:13px;margin-bottom:1.5rem;">{html.escape(err_msg)}</p>
+    <a href="/?auth_error={urllib.parse.quote(err_msg)}" style="display:inline-block;padding:8px 16px;background:#e11d48;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px;">Zurück zur App</a>
+  </div>
+</body>
+</html>"""
+                self._set_headers(400, "text/html; charset=utf-8")
+                self.wfile.write(html_resp.encode("utf-8"))
+                return
+
+            host = self.headers.get("Host", f"localhost:{DEFAULT_PORT}")
+            proto = "https" if self.headers.get("X-Forwarded-Proto") == "https" else "http"
+            redirect_uri = os.environ.get("GITHUB_REDIRECT_URI") or f"{proto}://{host}/api/auth/github/callback"
+
+            access_token = exchange_github_code_for_token(code, redirect_uri=redirect_uri)
+            if not access_token:
+                err_msg = "Konnte keinen Access Token von GitHub abrufen. Bitte GITHUB_CLIENT_ID und GITHUB_CLIENT_SECRET prüfen."
+                html_resp = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>GitHub Token Fehler</title></head>
+<body style="background:#0b0b0e;color:#f43f5e;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <div style="text-align:center;padding:2rem;background:#18181b;border:1px solid #e11d48;border-radius:12px;max-width:420px;">
+    <h3 style="color:#fb7185;margin-bottom:0.5rem;">GitHub Token Fehler</h3>
+    <p style="color:#a1a1aa;font-size:13px;margin-bottom:1.5rem;">{html.escape(err_msg)}</p>
+    <a href="/?auth_error={urllib.parse.quote(err_msg)}" style="display:inline-block;padding:8px 16px;background:#e11d48;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px;">Zurück zur App</a>
+  </div>
+</body>
+</html>"""
+                self._set_headers(400, "text/html; charset=utf-8")
+                self.wfile.write(html_resp.encode("utf-8"))
+                return
+
+            gh_profile = fetch_github_user_profile(access_token)
+            if not gh_profile or not gh_profile.get("github_id"):
+                err_msg = "Konnte GitHub-Benutzerprofil nicht abrufen."
+                html_resp = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>GitHub Profil Fehler</title></head>
+<body style="background:#0b0b0e;color:#f43f5e;font-family:system-ui,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <div style="text-align:center;padding:2rem;background:#18181b;border:1px solid #e11d48;border-radius:12px;max-width:420px;">
+    <h3 style="color:#fb7185;margin-bottom:0.5rem;">GitHub Profilfehler</h3>
+    <p style="color:#a1a1aa;font-size:13px;margin-bottom:1.5rem;">{html.escape(err_msg)}</p>
+    <a href="/?auth_error={urllib.parse.quote(err_msg)}" style="display:inline-block;padding:8px 16px;background:#e11d48;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:13px;">Zurück zur App</a>
+  </div>
+</body>
+</html>"""
+                self._set_headers(400, "text/html; charset=utf-8")
+                self.wfile.write(html_resp.encode("utf-8"))
+                return
+
+            # Upsert user in DB
+            user = KnowledgeBaseServer.db.upsert_github_user(
+                github_id=gh_profile["github_id"],
+                username=gh_profile["username"],
+                email=gh_profile["email"],
+                avatar_url=gh_profile.get("avatar_url", "")
+            )
+            if not user:
+                err_msg = "Datenbankfehler beim Speichern des GitHub-Benutzers."
+                self._set_headers(500, "text/html; charset=utf-8")
+                self.wfile.write(f"<h3>{err_msg}</h3>".encode("utf-8"))
+                return
+
+            jwt_token = create_jwt_token({"user_id": user["id"], "username": user["username"]})
+
+            # Return automatic bridge HTML script that sets localStorage and redirects to app
+            success_html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>GitHub Login erfolgreich</title>
+</head>
+<body style="background:#0b0b0e;color:#e4e4e7;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;">
+  <div style="text-align:center;padding:2.5rem;background:#18181b;border:1px solid #63B22F;border-radius:16px;box-shadow:0 0 30px rgba(99,178,47,0.2);max-width:440px;">
+    <div style="font-size:40px;margin-bottom:12px;">🐱</div>
+    <h3 style="color:#63B22F;margin:0 0 8px 0;font-size:18px;">GitHub Login erfolgreich!</h3>
+    <p style="color:#a1a1aa;font-size:13px;margin:0 0 16px 0;">Willkommen, <strong>{html.escape(user['username'])}</strong>! Du wirst weitergeleitet...</p>
+    <div style="height:3px;background:#27272a;border-radius:2px;overflow:hidden;position:relative;">
+      <div style="height:100%;background:#63B22F;width:100%;"></div>
+    </div>
+  </div>
+  <script>
+    try {{
+      localStorage.setItem('corenow_auth_token', '{jwt_token}');
+    }} catch(e) {{}}
+    setTimeout(function() {{
+      window.location.href = '/?login_success=1';
+    }}, 400);
+  </script>
+</body>
+</html>"""
+            self._set_headers(200, "text/html; charset=utf-8")
+            self.wfile.write(success_html.encode("utf-8"))
+            return
+
         # Auth: Current User
         if self.path == "/api/auth/me":
             user = self._get_authenticated_user()
@@ -1399,7 +1553,9 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 "username": user["username"],
                 "email": user["email"],
                 "role": user.get("role", "developer"),
-                "created_at": user.get("created_at")
+                "created_at": user.get("created_at"),
+                "avatar_url": user.get("avatar_url"),
+                "github_id": user.get("github_id")
             }).encode("utf-8"))
             return
 

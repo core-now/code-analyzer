@@ -134,3 +134,106 @@ def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
         return payload
     except Exception:
         return None
+
+
+# --- GitHub OAuth Helpers ---
+
+def is_github_oauth_configured() -> bool:
+    """Returns True if GitHub OAuth client ID and secret are configured."""
+    return bool(os.environ.get("GITHUB_CLIENT_ID", "").strip() and os.environ.get("GITHUB_CLIENT_SECRET", "").strip())
+
+
+def exchange_github_code_for_token(code: str, redirect_uri: Optional[str] = None) -> Optional[str]:
+    """Exchanges a GitHub OAuth authorization code for an access token."""
+    import urllib.request
+    import urllib.parse
+
+    client_id = os.environ.get("GITHUB_CLIENT_ID", "").strip()
+    client_secret = os.environ.get("GITHUB_CLIENT_SECRET", "").strip()
+    if not client_id or not client_secret or not code:
+        return None
+
+    token_url = "https://github.com/login/oauth/access_token"
+    payload_data: Dict[str, Any] = {
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "code": code
+    }
+    if redirect_uri:
+        payload_data["redirect_uri"] = redirect_uri
+
+    post_data = json.dumps(payload_data).encode("utf-8")
+    req = urllib.request.Request(
+        token_url,
+        data=post_data,
+        headers={
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "User-Agent": "CodebaseAnalyzer/1.0"
+        }
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            resp_body = json.loads(resp.read().decode("utf-8"))
+            return resp_body.get("access_token")
+    except Exception:
+        return None
+
+
+def fetch_github_user_profile(access_token: str) -> Optional[Dict[str, Any]]:
+    """Fetches user profile and primary email from GitHub API."""
+    import urllib.request
+
+    if not access_token:
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Accept": "application/vnd.github.v3+json",
+        "User-Agent": "CodebaseAnalyzer/1.0"
+    }
+
+    try:
+        # 1. Fetch core user info
+        user_req = urllib.request.Request("https://api.github.com/user", headers=headers)
+        with urllib.request.urlopen(user_req, timeout=15) as resp:
+            user_data = json.loads(resp.read().decode("utf-8"))
+
+        github_id = str(user_data.get("id"))
+        username = user_data.get("login") or f"gh_user_{github_id}"
+        email = user_data.get("email")
+        avatar_url = user_data.get("avatar_url", "")
+        name = user_data.get("name") or username
+
+        # 2. If email is null/private, fetch from /user/emails
+        if not email:
+            try:
+                emails_req = urllib.request.Request("https://api.github.com/user/emails", headers=headers)
+                with urllib.request.urlopen(emails_req, timeout=10) as email_resp:
+                    emails_list = json.loads(email_resp.read().decode("utf-8"))
+                    if isinstance(emails_list, list):
+                        for em in emails_list:
+                            if em.get("primary") and em.get("verified"):
+                                email = em.get("email")
+                                break
+                        if not email and emails_list:
+                            for em in emails_list:
+                                if em.get("verified") or not em.get("email", "").endswith("noreply.github.com"):
+                                    email = em.get("email")
+                                    break
+            except Exception:
+                pass
+
+        if not email:
+            email = f"{username}@users.noreply.github.com"
+
+        return {
+            "github_id": github_id,
+            "username": username,
+            "email": email,
+            "avatar_url": avatar_url,
+            "name": name
+        }
+    except Exception:
+        return None
+

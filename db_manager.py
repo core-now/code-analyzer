@@ -146,9 +146,25 @@ class DatabaseManager:
                     role TEXT NOT NULL DEFAULT 'developer',
                     is_active INTEGER NOT NULL DEFAULT 1,
                     created_at TEXT NOT NULL,
-                    last_login TEXT
+                    last_login TEXT,
+                    github_id TEXT UNIQUE,
+                    avatar_url TEXT
                 )
             """)
+            # Check SQLite user schema migrations
+            cursor.execute("PRAGMA table_info(users)")
+            user_cols = [row[1] for row in cursor.fetchall()]
+            if "github_id" not in user_cols:
+                try:
+                    cursor.execute("ALTER TABLE users ADD COLUMN github_id TEXT")
+                    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS IX_users_github_id ON users(github_id)")
+                except Exception:
+                    pass
+            if "avatar_url" not in user_cols:
+                try:
+                    cursor.execute("ALTER TABLE users ADD COLUMN avatar_url TEXT")
+                except Exception:
+                    pass
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS projects (
                     id TEXT PRIMARY KEY,
@@ -191,10 +207,23 @@ class DatabaseManager:
                         [role] NVARCHAR(50) NOT NULL DEFAULT 'developer',
                         [is_active] BIT NOT NULL DEFAULT 1,
                         [created_at] DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
-                        [last_login] DATETIME2 NULL
+                        [last_login] DATETIME2 NULL,
+                        [github_id] NVARCHAR(100) NULL UNIQUE,
+                        [avatar_url] NVARCHAR(500) NULL
                     );
                     CREATE INDEX [IX_users_username] ON [dbo].[users]([username]);
                     CREATE INDEX [IX_users_email] ON [dbo].[users]([email]);
+                END
+                ELSE
+                BEGIN
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[users]') AND name = 'github_id')
+                    BEGIN
+                        ALTER TABLE [dbo].[users] ADD [github_id] NVARCHAR(100) NULL;
+                    END
+                    IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[users]') AND name = 'avatar_url')
+                    BEGIN
+                        ALTER TABLE [dbo].[users] ADD [avatar_url] NVARCHAR(500) NULL;
+                    END
                 END
             """)
             cursor.execute("""
@@ -236,21 +265,23 @@ class DatabaseManager:
 
     # --- User Management ---
 
-    def create_user(self, username: str, email: str, password_hash: str, role: str = "developer") -> Optional[Dict[str, Any]]:
+    def create_user(self, username: str, email: str, password_hash: str, role: str = "developer", github_id: Optional[str] = None, avatar_url: Optional[str] = None) -> Optional[Dict[str, Any]]:
         user_id = str(uuid.uuid4())
         now = datetime.datetime.utcnow().isoformat()
+        clean_user = username.strip()
+        clean_email = email.strip()
 
         if self.db_type == "mssql":
             try:
                 conn = self._get_mssql_conn()
                 cursor = conn.cursor()
                 cursor.execute(
-                    "INSERT INTO users (id, username, email, password_hash, role, is_active, created_at) VALUES (%s, %s, %s, %s, %s, 1, %s)" if self.driver == "pymssql" else
-                    "INSERT INTO users (id, username, email, password_hash, role, is_active, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)",
-                    (user_id, username, email, password_hash, role, now)
+                    "INSERT INTO users (id, username, email, password_hash, role, is_active, created_at, github_id, avatar_url) VALUES (%s, %s, %s, %s, %s, 1, %s, %s, %s)" if self.driver == "pymssql" else
+                    "INSERT INTO users (id, username, email, password_hash, role, is_active, created_at, github_id, avatar_url) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)",
+                    (user_id, clean_user, clean_email, password_hash, role, now, github_id, avatar_url)
                 )
                 conn.close()
-                return {"id": user_id, "username": username, "email": email, "role": role, "is_active": True, "created_at": now}
+                return {"id": user_id, "username": clean_user, "email": clean_email, "role": role, "is_active": True, "created_at": now, "github_id": github_id, "avatar_url": avatar_url}
             except Exception as e:
                 logger.error(f"Failed to create user in MSSQL: {e}")
                 return None
@@ -259,22 +290,25 @@ class DatabaseManager:
                 with self._get_sqlite_conn() as conn:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "INSERT INTO users (id, username, email, password_hash, role, is_active, created_at) VALUES (?, ?, ?, ?, ?, 1, ?)",
-                        (user_id, username, email, password_hash, role, now)
+                        "INSERT INTO users (id, username, email, password_hash, role, is_active, created_at, github_id, avatar_url) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)",
+                        (user_id, clean_user, clean_email, password_hash, role, now, github_id, avatar_url)
                     )
                     conn.commit()
-                return {"id": user_id, "username": username, "email": email, "role": role, "is_active": True, "created_at": now}
+                return {"id": user_id, "username": clean_user, "email": clean_email, "role": role, "is_active": True, "created_at": now, "github_id": github_id, "avatar_url": avatar_url}
             except Exception as e:
                 logger.error(f"Failed to create user in SQLite: {e}")
                 return None
 
     def get_user_by_username_or_email(self, identifier: str) -> Optional[Dict[str, Any]]:
+        if not identifier:
+            return None
+        clean_id = identifier.strip()
         if self.db_type == "mssql":
             try:
                 conn = self._get_mssql_conn()
                 cursor = conn.cursor()
-                query = "SELECT id, username, email, password_hash, role, is_active, created_at, last_login FROM users WHERE username = %s OR email = %s" if self.driver == "pymssql" else "SELECT id, username, email, password_hash, role, is_active, created_at, last_login FROM users WHERE username = ? OR email = ?"
-                cursor.execute(query, (identifier, identifier))
+                query = "SELECT id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url FROM users WHERE LOWER(username) = LOWER(%s) OR LOWER(email) = LOWER(%s)" if self.driver == "pymssql" else "SELECT id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)"
+                cursor.execute(query, (clean_id, clean_id))
                 row = cursor.fetchone()
                 conn.close()
                 if row:
@@ -288,7 +322,9 @@ class DatabaseManager:
                         "role": str(row[4]),
                         "is_active": bool(row[5]),
                         "created_at": str(row[6]),
-                        "last_login": str(row[7]) if row[7] else None
+                        "last_login": str(row[7]) if row[7] else None,
+                        "github_id": str(row[8]) if len(row) > 8 and row[8] else None,
+                        "avatar_url": str(row[9]) if len(row) > 9 and row[9] else None
                     }
                 return None
             except Exception as e:
@@ -299,8 +335,8 @@ class DatabaseManager:
                 with self._get_sqlite_conn() as conn:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "SELECT id, username, email, password_hash, role, is_active, created_at, last_login FROM users WHERE username = ? OR email = ?",
-                        (identifier, identifier)
+                        "SELECT id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url FROM users WHERE LOWER(username) = LOWER(?) OR LOWER(email) = LOWER(?)",
+                        (clean_id, clean_id)
                     )
                     row = cursor.fetchone()
                     if row:
@@ -310,12 +346,133 @@ class DatabaseManager:
                 logger.error(f"Failed to fetch user from SQLite: {e}")
                 return None
 
-    def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+    def get_user_by_github_id(self, github_id: str) -> Optional[Dict[str, Any]]:
+        if not github_id:
+            return None
+        gh_id = str(github_id).strip()
         if self.db_type == "mssql":
             try:
                 conn = self._get_mssql_conn()
                 cursor = conn.cursor()
-                query = "SELECT id, username, email, role, is_active, created_at, last_login FROM users WHERE id = %s" if self.driver == "pymssql" else "SELECT id, username, email, role, is_active, created_at, last_login FROM users WHERE id = ?"
+                query = "SELECT id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url FROM users WHERE github_id = %s" if self.driver == "pymssql" else "SELECT id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url FROM users WHERE github_id = ?"
+                cursor.execute(query, (gh_id,))
+                row = cursor.fetchone()
+                conn.close()
+                if row:
+                    if isinstance(row, dict):
+                        return row
+                    return {
+                        "id": str(row[0]),
+                        "username": str(row[1]),
+                        "email": str(row[2]),
+                        "password_hash": str(row[3]),
+                        "role": str(row[4]),
+                        "is_active": bool(row[5]),
+                        "created_at": str(row[6]),
+                        "last_login": str(row[7]) if row[7] else None,
+                        "github_id": str(row[8]) if len(row) > 8 and row[8] else None,
+                        "avatar_url": str(row[9]) if len(row) > 9 and row[9] else None
+                    }
+                return None
+            except Exception as e:
+                logger.error(f"Failed to fetch user by github_id from MSSQL: {e}")
+                return None
+        else:
+            try:
+                with self._get_sqlite_conn() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "SELECT id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url FROM users WHERE github_id = ?",
+                        (gh_id,)
+                    )
+                    row = cursor.fetchone()
+                    if row:
+                        return dict(row)
+                return None
+            except Exception as e:
+                logger.error(f"Failed to fetch user by github_id from SQLite: {e}")
+                return None
+
+    def upsert_github_user(self, github_id: str, username: str, email: str, avatar_url: str = "") -> Optional[Dict[str, Any]]:
+        """Finds or creates a user account linked with GitHub OAuth."""
+        gh_id = str(github_id).strip()
+        clean_user = (username or f"gh_{gh_id}").strip()
+        clean_email = (email or f"{clean_user}@github.oauth").strip().lower()
+        now = datetime.datetime.utcnow().isoformat()
+
+        # 1. Look up by GitHub ID
+        user = self.get_user_by_github_id(gh_id)
+        if user:
+            self.update_last_login(user["id"])
+            return user
+
+        # 2. Look up by email
+        user_by_email = self.get_user_by_username_or_email(clean_email)
+        if user_by_email:
+            user_id = user_by_email["id"]
+            if self.db_type == "mssql":
+                try:
+                    conn = self._get_mssql_conn()
+                    cursor = conn.cursor()
+                    query = "UPDATE users SET github_id = %s, avatar_url = %s, last_login = %s WHERE id = %s" if self.driver == "pymssql" else "UPDATE users SET github_id = ?, avatar_url = ?, last_login = ? WHERE id = ?"
+                    cursor.execute(query, (gh_id, avatar_url, now, user_id))
+                    conn.close()
+                except Exception as e:
+                    logger.error(f"Error linking GitHub ID to user in MSSQL: {e}")
+            else:
+                try:
+                    with self._get_sqlite_conn() as conn:
+                        conn.execute("UPDATE users SET github_id = ?, avatar_url = ?, last_login = ? WHERE id = ?", (gh_id, avatar_url, now, user_id))
+                        conn.commit()
+                except Exception as e:
+                    logger.error(f"Error linking GitHub ID to user in SQLite: {e}")
+            return self.get_user_by_id(user_id)
+
+        # 3. Create brand new user
+        # Ensure unique username
+        candidate_username = clean_user
+        idx = 1
+        while self.get_user_by_username_or_email(candidate_username):
+            candidate_username = f"{clean_user}_{idx}"
+            idx += 1
+
+        user_id = str(uuid.uuid4())
+        role = "developer"
+        pw_hash = "oauth:github:" + str(uuid.uuid4())
+
+        if self.db_type == "mssql":
+            try:
+                conn = self._get_mssql_conn()
+                cursor = conn.cursor()
+                query = "INSERT INTO users (id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url) VALUES (%s, %s, %s, %s, %s, 1, %s, %s, %s, %s)" if self.driver == "pymssql" else "INSERT INTO users (id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)"
+                cursor.execute(query, (user_id, candidate_username, clean_email, pw_hash, role, now, now, gh_id, avatar_url))
+                conn.close()
+                return {"id": user_id, "username": candidate_username, "email": clean_email, "role": role, "is_active": True, "created_at": now, "github_id": gh_id, "avatar_url": avatar_url}
+            except Exception as e:
+                logger.error(f"Failed to create GitHub user in MSSQL: {e}")
+                return None
+        else:
+            try:
+                with self._get_sqlite_conn() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "INSERT INTO users (id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)",
+                        (user_id, candidate_username, clean_email, pw_hash, role, now, now, gh_id, avatar_url)
+                    )
+                    conn.commit()
+                return {"id": user_id, "username": candidate_username, "email": clean_email, "role": role, "is_active": True, "created_at": now, "github_id": gh_id, "avatar_url": avatar_url}
+            except Exception as e:
+                logger.error(f"Failed to create GitHub user in SQLite: {e}")
+                return None
+
+    def get_user_by_id(self, user_id: str) -> Optional[Dict[str, Any]]:
+        if not user_id:
+            return None
+        if self.db_type == "mssql":
+            try:
+                conn = self._get_mssql_conn()
+                cursor = conn.cursor()
+                query = "SELECT id, username, email, role, is_active, created_at, last_login, github_id, avatar_url FROM users WHERE id = %s" if self.driver == "pymssql" else "SELECT id, username, email, role, is_active, created_at, last_login, github_id, avatar_url FROM users WHERE id = ?"
                 cursor.execute(query, (user_id,))
                 row = cursor.fetchone()
                 conn.close()
@@ -329,7 +486,9 @@ class DatabaseManager:
                         "role": str(row[3]),
                         "is_active": bool(row[4]),
                         "created_at": str(row[5]),
-                        "last_login": str(row[6]) if row[6] else None
+                        "last_login": str(row[6]) if row[6] else None,
+                        "github_id": str(row[7]) if len(row) > 7 and row[7] else None,
+                        "avatar_url": str(row[8]) if len(row) > 8 and row[8] else None
                     }
                 return None
             except Exception as e:
@@ -340,7 +499,7 @@ class DatabaseManager:
                 with self._get_sqlite_conn() as conn:
                     cursor = conn.cursor()
                     cursor.execute(
-                        "SELECT id, username, email, role, is_active, created_at, last_login FROM users WHERE id = ?",
+                        "SELECT id, username, email, role, is_active, created_at, last_login, github_id, avatar_url FROM users WHERE id = ?",
                         (user_id,)
                     )
                     row = cursor.fetchone()
