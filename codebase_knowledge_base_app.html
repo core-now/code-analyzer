@@ -39,24 +39,47 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/plugins/autoloader/prism-autoloader.min.js"></script>
 
   <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              orange: 'var(--brand-orange, #FF8000)',
-              orangeGlow: 'var(--brand-orange-glow, rgba(255, 128, 0, 0.35))',
-              dark: '#121214',
-              anthracite: '#18181b',
-              card: '#242428',
-              border: '#2e2e33',
-              green: '#63B22F',
-              pink: '#FF8EAB'
+    if (typeof tailwind !== 'undefined' && tailwind) {
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                orange: 'var(--brand-orange, #FF8000)',
+                orangeGlow: 'var(--brand-orange-glow, rgba(255, 128, 0, 0.35))',
+                dark: '#121214',
+                anthracite: '#18181b',
+                card: '#242428',
+                border: '#2e2e33',
+                green: '#63B22F',
+                pink: '#FF8EAB'
+              }
             }
           }
         }
-      }
+      };
+    } else {
+      window.tailwind = window.tailwind || {};
+      window.tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                orange: 'var(--brand-orange, #FF8000)',
+                orangeGlow: 'var(--brand-orange-glow, rgba(255, 128, 0, 0.35))',
+                dark: '#121214',
+                anthracite: '#18181b',
+                card: '#242428',
+                border: '#2e2e33',
+                green: '#63B22F',
+                pink: '#FF8EAB'
+              }
+            }
+          }
+        }
+      };
     }
   </script>
 
