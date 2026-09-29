@@ -118,7 +118,8 @@ class DatabaseManager:
                 password=self.mssql_password,
                 database=self.mssql_name,
                 port=port,
-                autocommit=True
+                autocommit=True,
+                as_dict=True
             )
         elif self.driver == "pyodbc":
             conn_str = (
@@ -398,13 +399,16 @@ class DatabaseManager:
         gh_id = str(github_id).strip()
         clean_user = (username or f"gh_{gh_id}").strip()
         clean_email = (email or f"{clean_user}@github.oauth").strip().lower()
-        now = datetime.datetime.utcnow().isoformat()
+        now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
         # 1. Look up by GitHub ID
-        user = self.get_user_by_github_id(gh_id)
-        if user:
-            self.update_last_login(user["id"])
-            return user
+        try:
+            user = self.get_user_by_github_id(gh_id)
+            if user:
+                self.update_last_login(user["id"])
+                return user
+        except Exception as e:
+            logger.warning(f"Lookup by github_id failed, attempting schema check: {e}")
 
         # 2. Look up by email
         user_by_email = self.get_user_by_username_or_email(clean_email)
@@ -419,6 +423,16 @@ class DatabaseManager:
                     conn.close()
                 except Exception as e:
                     logger.error(f"Error linking GitHub ID to user in MSSQL: {e}")
+                    # Try to add missing columns and retry update
+                    try:
+                        self._init_mssql_schema()
+                        conn = self._get_mssql_conn()
+                        cursor = conn.cursor()
+                        query = "UPDATE users SET github_id = %s, avatar_url = %s, last_login = %s WHERE id = %s" if self.driver == "pymssql" else "UPDATE users SET github_id = ?, avatar_url = ?, last_login = ? WHERE id = ?"
+                        cursor.execute(query, (gh_id, avatar_url, now, user_id))
+                        conn.close()
+                    except Exception as e2:
+                        logger.error(f"Retry linking GitHub ID failed: {e2}")
             else:
                 try:
                     with self._get_sqlite_conn() as conn:
@@ -450,7 +464,18 @@ class DatabaseManager:
                 return {"id": user_id, "username": candidate_username, "email": clean_email, "role": role, "is_active": True, "created_at": now, "github_id": gh_id, "avatar_url": avatar_url}
             except Exception as e:
                 logger.error(f"Failed to create GitHub user in MSSQL: {e}")
-                return None
+                # Ensure schema has all columns and retry
+                try:
+                    self._init_mssql_schema()
+                    conn = self._get_mssql_conn()
+                    cursor = conn.cursor()
+                    query = "INSERT INTO users (id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url) VALUES (%s, %s, %s, %s, %s, 1, %s, %s, %s, %s)" if self.driver == "pymssql" else "INSERT INTO users (id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)"
+                    cursor.execute(query, (user_id, candidate_username, clean_email, pw_hash, role, now, now, gh_id, avatar_url))
+                    conn.close()
+                    return {"id": user_id, "username": candidate_username, "email": clean_email, "role": role, "is_active": True, "created_at": now, "github_id": gh_id, "avatar_url": avatar_url}
+                except Exception as e2:
+                    logger.error(f"Retry creating GitHub user in MSSQL failed: {e2}")
+                    return None
         else:
             try:
                 with self._get_sqlite_conn() as conn:
