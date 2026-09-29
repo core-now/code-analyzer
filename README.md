@@ -1,5 +1,9 @@
 # 🏙️ CoreNow Code Intelligence & Codebase Analyzer
 
+<p align="center">
+  <img src="assets/ai-matrix-city.svg" alt="CoreNow Code Intelligence 3D Matrix City" width="100%" />
+</p>
+
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
 [![Ollama](https://img.shields.io/badge/Ollama-Qwen2.5--Coder%207B-000000?logo=ollama&logoColor=white)](https://ollama.com/)
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
@@ -8,7 +12,6 @@
 Ein ganzheitliches, KI-gestütztes Tool zur statischen Code-Analyse, 3D-Metropolen-Visualisierung (Three.js), AST-Klassifikation und tiefgehenden Architektur-Audits mit lokalen LLMs.
 
 ---
-![image](assets/ai-matrix-city.svg)
 
 ## 🌟 Hauptfunktionen & Features
 
@@ -18,6 +21,7 @@ Ein ganzheitliches, KI-gestütztes Tool zur statischen Code-Analyse, 3D-Metropol
 - **🤖 Lokale LLM-Integration**: Vollständig integrierter OpenAI-kompatibler Endpunkt (Ollama mit z.B. `qwen2.5-coder:7b`, `deepseek-coder` oder `llama3`).
 - **📦 Staged Module Batches**: Chunks (4–8 Dateien) werden für gezielte Reviews mit Qualitäts-Scores und Risiko-Audits an das LLM übergeben.
 - **📁 Multi-Format Ingestion**: Scannen lokaler Ordner oder direkter Upload von `.zip`-Archiven im Web-Interface.
+- **📊 Demo-Codebase Asset**: Sofortiges Erkunden mit Beispieldaten aus [`assets/demo_codebase.json`](assets/demo_codebase.json) (über 'Import JSON' im Web-Dashboard).
 
 ---
 

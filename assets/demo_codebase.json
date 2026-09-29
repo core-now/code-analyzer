@@ -1,0 +1,374 @@
+{
+  "project_name": "CoreNow-Codebase-Metropolis",
+  "timestamp": "2026-09-29T12:00:00Z",
+  "delta_stats": {
+    "cached": 0,
+    "scanned": 8,
+    "total": 8
+  },
+  "summary": {
+    "total_files": 8,
+    "total_lines": 182,
+    "code_lines": 142,
+    "comment_lines": 12,
+    "blank_lines": 28,
+    "avg_complexity": 7.12,
+    "intent_counts": {
+      "Auth": 1,
+      "API": 2,
+      "Data": 1,
+      "UI": 2,
+      "Core": 1,
+      "Utils": 1
+    },
+    "languages": {
+      "Rust": 58,
+      "TypeScript": 48,
+      "Python": 18,
+      "JSON": 18
+    }
+  },
+  "file_tree": {
+    "name": "root",
+    "type": "directory",
+    "children": {
+      "src-tauri": {
+        "name": "src-tauri",
+        "type": "directory",
+        "children": {
+          "src": {
+            "name": "src",
+            "type": "directory",
+            "children": {
+              "main.rs": {
+                "name": "main.rs",
+                "type": "file",
+                "path": "src-tauri/src/main.rs",
+                "language": "Rust",
+                "lines": 24,
+                "complexity": 12
+              },
+              "auth": {
+                "name": "auth",
+                "type": "directory",
+                "children": {
+                  "session.rs": {
+                    "name": "session.rs",
+                    "type": "file",
+                    "path": "src-tauri/src/auth/session.rs",
+                    "language": "Rust",
+                    "lines": 22,
+                    "complexity": 7
+                  }
+                }
+              },
+              "storage": {
+                "name": "storage",
+                "type": "directory",
+                "children": {
+                  "db.rs": {
+                    "name": "db.rs",
+                    "type": "file",
+                    "path": "src-tauri/src/storage/db.rs",
+                    "language": "Rust",
+                    "lines": 18,
+                    "complexity": 6
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "src": {
+        "name": "src",
+        "type": "directory",
+        "children": {
+          "main.ts": {
+            "name": "main.ts",
+            "type": "file",
+            "path": "src/main.ts",
+            "language": "TypeScript",
+            "lines": 16,
+            "complexity": 5
+          },
+          "components": {
+            "name": "components",
+            "type": "directory",
+            "children": {
+              "CityViewer.ts": {
+                "name": "CityViewer.ts",
+                "type": "file",
+                "path": "src/components/CityViewer.ts",
+                "language": "TypeScript",
+                "lines": 26,
+                "complexity": 14
+              }
+            }
+          },
+          "api": {
+            "name": "api",
+            "type": "directory",
+            "children": {
+              "client.ts": {
+                "name": "client.ts",
+                "type": "file",
+                "path": "src/api/client.ts",
+                "language": "TypeScript",
+                "lines": 10,
+                "complexity": 4
+              }
+            }
+          }
+        }
+      },
+      "server": {
+        "name": "server",
+        "type": "directory",
+        "children": {
+          "analyzer_engine.py": {
+            "name": "analyzer_engine.py",
+            "type": "file",
+            "path": "server/analyzer_engine.py",
+            "language": "Python",
+            "lines": 16,
+            "complexity": 8
+          }
+        }
+      },
+      "package.json": {
+        "name": "package.json",
+        "type": "file",
+        "path": "package.json",
+        "language": "JSON",
+        "lines": 18,
+        "complexity": 1
+      }
+    }
+  },
+  "mindmap": {
+    "id": "root",
+    "name": "CoreNow Metropolis Architecture",
+    "category": "Architecture",
+    "children": [
+      {
+        "id": "layer_backend",
+        "name": "Backend (Tauri & Rust)",
+        "path": "src-tauri",
+        "category": "Layer",
+        "children": [
+          {
+            "id": "src-tauri/src/main.rs",
+            "name": "main.rs",
+            "path": "src-tauri/src/main.rs",
+            "category": "Component"
+          },
+          {
+            "id": "src-tauri/src/auth/session.rs",
+            "name": "session.rs",
+            "path": "src-tauri/src/auth/session.rs",
+            "category": "Component"
+          },
+          {
+            "id": "src-tauri/src/storage/db.rs",
+            "name": "db.rs",
+            "path": "src-tauri/src/storage/db.rs",
+            "category": "Component"
+          }
+        ]
+      },
+      {
+        "id": "layer_frontend",
+        "name": "Frontend (TypeScript & Three.js)",
+        "path": "src",
+        "category": "Layer",
+        "children": [
+          {
+            "id": "src/main.ts",
+            "name": "main.ts",
+            "path": "src/main.ts",
+            "category": "Component"
+          },
+          {
+            "id": "src/components/CityViewer.ts",
+            "name": "CityViewer.ts",
+            "path": "src/components/CityViewer.ts",
+            "category": "Component"
+          },
+          {
+            "id": "src/api/client.ts",
+            "name": "client.ts",
+            "path": "src/api/client.ts",
+            "category": "Component"
+          }
+        ]
+      },
+      {
+        "id": "layer_server",
+        "name": "Analysis Server (Python)",
+        "path": "server",
+        "category": "Layer",
+        "children": [
+          {
+            "id": "server/analyzer_engine.py",
+            "name": "analyzer_engine.py",
+            "path": "server/analyzer_engine.py",
+            "category": "Component"
+          }
+        ]
+      }
+    ]
+  },
+  "risk_radar": {
+    "health_score": 95,
+    "metrics": {
+      "high_complexity_files": 0,
+      "large_files": 0,
+      "low_documentation_files": 0
+    },
+    "alerts": [
+      {
+        "level": "info",
+        "title": "Modular Rust Architecture",
+        "path": "src-tauri/src/main.rs",
+        "description": "Async Tauri IPC commands isolated cleanly from UI presentation layer."
+      },
+      {
+        "level": "info",
+        "title": "WebGL 3D Rendering Pad",
+        "path": "src/components/CityViewer.ts",
+        "description": "Three.js animation loop properly initialized with resize observers."
+      }
+    ]
+  },
+  "api_catalog": [
+    {
+      "protocol": "Tauri IPC",
+      "name": "scan_codebase",
+      "handler": "scan_codebase",
+      "path": "src-tauri/src/main.rs",
+      "type": "Command"
+    },
+    {
+      "protocol": "Tauri IPC",
+      "name": "get_system_metrics",
+      "handler": "get_system_metrics",
+      "path": "src-tauri/src/main.rs",
+      "type": "Command"
+    }
+  ],
+  "module_batches": [
+    {
+      "batch_id": 1,
+      "name": "Core Backend & Storage",
+      "files": [
+        "src-tauri/src/main.rs",
+        "src-tauri/src/auth/session.rs",
+        "src-tauri/src/storage/db.rs"
+      ],
+      "summary": "Tauri desktop IPC handlers, authentication session lifecycle and persistent key-value cache."
+    },
+    {
+      "batch_id": 2,
+      "name": "Interactive 3D Metropolis UI",
+      "files": [
+        "src/main.ts",
+        "src/components/CityViewer.ts",
+        "src/api/client.ts"
+      ],
+      "summary": "Three.js 3D city scene graph renderer, lighting setup and IPC client bindings."
+    }
+  ],
+  "files": {
+    "src-tauri/src/main.rs": {
+      "path": "src-tauri/src/main.rs",
+      "language": "Rust",
+      "total_lines": 24,
+      "code_lines": 18,
+      "comment_lines": 2,
+      "blank_lines": 4,
+      "complexity": 12,
+      "intent_role": "API"
+    },
+    "src-tauri/src/auth/session.rs": {
+      "path": "src-tauri/src/auth/session.rs",
+      "language": "Rust",
+      "total_lines": 22,
+      "code_lines": 17,
+      "comment_lines": 1,
+      "blank_lines": 4,
+      "complexity": 7,
+      "intent_role": "Auth"
+    },
+    "src-tauri/src/storage/db.rs": {
+      "path": "src-tauri/src/storage/db.rs",
+      "language": "Rust",
+      "total_lines": 18,
+      "code_lines": 14,
+      "comment_lines": 0,
+      "blank_lines": 4,
+      "complexity": 6,
+      "intent_role": "Data"
+    },
+    "src/main.ts": {
+      "path": "src/main.ts",
+      "language": "TypeScript",
+      "total_lines": 16,
+      "code_lines": 12,
+      "comment_lines": 1,
+      "blank_lines": 3,
+      "complexity": 5,
+      "intent_role": "Core"
+    },
+    "src/components/CityViewer.ts": {
+      "path": "src/components/CityViewer.ts",
+      "language": "TypeScript",
+      "total_lines": 26,
+      "code_lines": 22,
+      "comment_lines": 0,
+      "blank_lines": 4,
+      "complexity": 14,
+      "intent_role": "UI"
+    },
+    "src/api/client.ts": {
+      "path": "src/api/client.ts",
+      "language": "TypeScript",
+      "total_lines": 10,
+      "code_lines": 8,
+      "comment_lines": 0,
+      "blank_lines": 2,
+      "complexity": 4,
+      "intent_role": "API"
+    },
+    "server/analyzer_engine.py": {
+      "path": "server/analyzer_engine.py",
+      "language": "Python",
+      "total_lines": 16,
+      "code_lines": 14,
+      "comment_lines": 0,
+      "blank_lines": 2,
+      "complexity": 8,
+      "intent_role": "Utils"
+    },
+    "package.json": {
+      "path": "package.json",
+      "language": "JSON",
+      "total_lines": 18,
+      "code_lines": 18,
+      "comment_lines": 0,
+      "blank_lines": 0,
+      "complexity": 1,
+      "intent_role": "Utils"
+    }
+  },
+  "file_contents": {
+    "src-tauri/src/main.rs": "// Prevents additional console window on Windows in release\n#![cfg_attr(not(debug_assertions), windows_subsystem = \"windows\")]\n\nuse tauri::Manager;\nmod auth;\nmod storage;\n\n#[tauri::command]\nasync fn scan_codebase(path: String) -> Result<String, String> {\n    println!(\"Scanning repository at: {}\", path);\n    Ok(format!(\"Scan completed successfully for {}\", path))\n}\n\n#[tauri::command]\nfn get_system_metrics() -> String {\n    \"CORENOW Engine: 60 FPS | Delta-Cache: Active\".into()\n}\n\nfn main() {\n    tauri::Builder::default()\n        .invoke_handler(tauri::generate_handler![scan_codebase, get_system_metrics])\n        .run(tauri::generate_context!())\n        .expect(\"Error while running Tauri Metropolis application\");\n}\n",
+    "src-tauri/src/auth/session.rs": "pub struct SessionManager {\n    pub token: String,\n    pub is_authenticated: bool,\n    pub roles: Vec<String>,\n}\n\nimpl SessionManager {\n    pub fn new() -> Self {\n        Self {\n            token: String::new(),\n            is_authenticated: false,\n            roles: vec![\"Analyst\".to_string()],\n        }\n    }\n\n    pub fn validate_token(&self, secret: &str) -> bool {\n        if self.token.is_empty() || secret.is_empty() {\n            return false;\n        }\n        self.token.starts_with(secret)\n    }\n}\n",
+    "src-tauri/src/storage/db.rs": "use std::collections::HashMap;\n\npub struct CacheStorage {\n    cache_store: HashMap<String, String>,\n}\n\nimpl CacheStorage {\n    pub fn new() -> Self {\n        Self { cache_store: HashMap::new() }\n    }\n\n    pub fn insert_entry(&mut self, sha: String, payload: String) {\n        self.cache_store.insert(sha, payload);\n    }\n\n    pub fn retrieve_entry(&self, sha: &str) -> Option<&String> {\n        self.cache_store.get(sha)\n    }\n}\n",
+    "src/main.ts": "import { mountCityViewer } from './components/CityViewer';\nimport { invokeCommand } from './api/client';\n\nconsole.log(\"Initializing CoreNow CodeCity Metropolis...\");\n\nasync function bootstrap() {\n    const status = await invokeCommand('get_system_metrics');\n    console.log(\"System Status:\", status);\n    const container = document.getElementById('viewport-3d');\n    if (container) {\n        mountCityViewer(container);\n    }\n}\n\nbootstrap();\n",
+    "src/components/CityViewer.ts": "import * as THREE from 'three';\n\nexport function mountCityViewer(domElement: HTMLElement): void {\n    const scene = new THREE.Scene();\n    scene.background = new THREE.Color(0x020804);\n    \n    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);\n    camera.position.set(200, 250, 300);\n    \n    const renderer = new THREE.WebGLRenderer({ antialias: true });\n    renderer.setSize(domElement.clientWidth, domElement.clientHeight);\n    domElement.appendChild(renderer.domElement);\n    \n    const light = new THREE.DirectionalLight(0xd9ff3d, 1.2);\n    light.position.set(100, 200, 100);\n    scene.add(light);\n    scene.add(new THREE.AmbientLight(0x223322, 0.8));\n\n    function animate() {\n        requestAnimationFrame(animate);\n        renderer.render(scene, camera);\n    }\n    animate();\n}\n",
+    "src/api/client.ts": "export async function invokeCommand(command: string, args?: Record<string, unknown>): Promise<any> {\n    if ((window as any).__TAURI_INTERNALS__) {\n        return (window as any).__TAURI_INTERNALS__.invoke(command, args);\n    }\n    return `[Mock Tauri IPC] Executed ${command}`;\n}\n",
+    "server/analyzer_engine.py": "import hashlib\nfrom typing import Dict, Any\n\ndef compute_sha256(content: str) -> str:\n    return hashlib.sha256(content.encode('utf-8')).hexdigest()\n\ndef classify_intent(path: str) -> str:\n    if 'auth' in path:\n        return 'Auth'\n    elif 'api' in path or 'route' in path:\n        return 'API'\n    elif 'store' in path or 'db' in path:\n        return 'Data'\n    elif 'component' in path or 'view' in path:\n        return 'UI'\n    return 'Core'\n",
+    "package.json": "{\n  \"name\": \"corenow-code-metropolis\",\n  \"version\": \"1.0.0\",\n  \"description\": \"Interactive 3D Three.js Codebase Metropolis Visualizer\",\n  \"main\": \"src/main.ts\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"tsc && vite build\"\n  },\n  \"dependencies\": {\n    \"three\": \"^0.160.0\"\n  },\n  \"devDependencies\": {\n    \"typescript\": \"^5.3.0\",\n    \"vite\": \"^5.0.0\"\n  }\n}\n"
+  }
+}
