@@ -33,6 +33,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application files
 COPY codebase_analyzer.py .
 COPY codebase_knowledge_base_app.html .
+COPY db_manager.py .
+COPY auth_manager.py .
+COPY db_schema.sql .
 
 # Create workspace directory
 RUN mkdir -p /workspace

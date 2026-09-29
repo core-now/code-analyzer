@@ -28,6 +28,15 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
+from db_manager import DatabaseManager
+from auth_manager import hash_password, verify_password, create_jwt_token, decode_jwt_token
+
 # UTF-8 Configuration for Windows PowerShell / CMD
 if sys.platform.startswith("win"):
     try:
@@ -1184,24 +1193,36 @@ class LLMClient:
 
 
 class KnowledgeBaseServer(BaseHTTPRequestHandler):
-    """Integrated HTTP Server delivering Codebase Knowledge Base API and Static UI."""
+    """Integrated HTTP Server delivering Codebase Knowledge Base API, Multi-User Auth, Project Snapshots and Static UI."""
 
     scanner = CodebaseScanner()
     llm = LLMClient()
+    db = DatabaseManager()
     cached_analysis: Optional[Dict[str, Any]] = None
 
     def _set_headers(self, status: int = 200, content_type: str = "application/json"):
         self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
         self.end_headers()
 
     def do_OPTIONS(self):
         self._set_headers(200, "text/plain")
 
+    def _get_authenticated_user(self) -> Optional[Dict[str, Any]]:
+        """Extracts and verifies JWT token from Authorization header."""
+        auth_header = self.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+            payload = decode_jwt_token(token)
+            if payload and "user_id" in payload:
+                return KnowledgeBaseServer.db.get_user_by_id(payload["user_id"])
+        return None
+
     def do_GET(self):
+        # Static UI Routes
         if self.path == "/" or self.path.startswith("/app"):
             html_path = Path(__file__).parent / "codebase_knowledge_base_app.html"
             if html_path.exists():
@@ -1214,16 +1235,78 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 self.wfile.write(b"codebase_knowledge_base_app.html not found.")
             return
 
+        # System & Engine Status
         if self.path == "/api/status":
             self._set_headers(200)
             self.wfile.write(json.dumps({
                 "status": "running",
-                "version": "2.0.0",
+                "version": "2.5.0",
+                "database": {
+                    "type": KnowledgeBaseServer.db.db_type,
+                    "driver": KnowledgeBaseServer.db.driver
+                },
                 "llm_endpoint": DEFAULT_LLM_URL,
                 "cache_file": DEFAULT_CACHE_FILE
             }).encode("utf-8"))
             return
 
+        # Auth: Current User
+        if self.path == "/api/auth/me":
+            user = self._get_authenticated_user()
+            if not user:
+                self._set_headers(401)
+                self.wfile.write(json.dumps({"error": "Unauthorized"}).encode("utf-8"))
+                return
+            self._set_headers(200)
+            self.wfile.write(json.dumps({
+                "id": user["id"],
+                "username": user["username"],
+                "email": user["email"],
+                "role": user.get("role", "developer"),
+                "created_at": user.get("created_at")
+            }).encode("utf-8"))
+            return
+
+        # Projects: List user & public projects
+        if self.path == "/api/projects":
+            user = self._get_authenticated_user()
+            user_id = user["id"] if user else None
+            projects = KnowledgeBaseServer.db.list_projects(user_id=user_id)
+            self._set_headers(200)
+            self.wfile.write(json.dumps({"projects": projects}).encode("utf-8"))
+            return
+
+        # Project Detail: /api/projects/{id}
+        if self.path.startswith("/api/projects/"):
+            parts = self.path.strip("/").split("/")
+            if len(parts) == 3 and parts[1] == "projects":
+                project_id = parts[2]
+                user = self._get_authenticated_user()
+                user_id = user["id"] if user else None
+                project = KnowledgeBaseServer.db.get_project_by_id(project_id, user_id=user_id)
+                if not project:
+                    self._set_headers(404)
+                    self.wfile.write(json.dumps({"error": "Project not found or private."}).encode("utf-8"))
+                    return
+                self._set_headers(200)
+                self.wfile.write(json.dumps(project).encode("utf-8"))
+                return
+
+        # Public Share: /api/share/{token}
+        if self.path.startswith("/api/share/"):
+            parts = self.path.strip("/").split("/")
+            if len(parts) == 3 and parts[1] == "share":
+                token = parts[2]
+                project = KnowledgeBaseServer.db.get_project_by_share_token(token)
+                if not project:
+                    self._set_headers(404)
+                    self.wfile.write(json.dumps({"error": "Invalid or expired share token."}).encode("utf-8"))
+                    return
+                self._set_headers(200)
+                self.wfile.write(json.dumps(project).encode("utf-8"))
+                return
+
+        # Legacy / Memory Analysis Cache Export
         if self.path == "/api/analysis" or self.path == "/api/export-results":
             if KnowledgeBaseServer.cached_analysis:
                 self._set_headers(200)
@@ -1257,6 +1340,151 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
         content_length = int(self.headers.get("Content-Length", 0))
         post_data = self.rfile.read(content_length)
 
+        # 1. Auth: Register
+        if self.path == "/api/auth/register":
+            try:
+                body = json.loads(post_data.decode("utf-8")) if post_data else {}
+                username = body.get("username", "").strip()
+                email = body.get("email", "").strip()
+                password = body.get("password", "")
+
+                if not username or not email or not password:
+                    self._set_headers(400)
+                    self.wfile.write(json.dumps({"error": "Username, email and password are required."}).encode("utf-8"))
+                    return
+
+                if len(password) < 6:
+                    self._set_headers(400)
+                    self.wfile.write(json.dumps({"error": "Password must be at least 6 characters long."}).encode("utf-8"))
+                    return
+
+                existing = KnowledgeBaseServer.db.get_user_by_username_or_email(username) or KnowledgeBaseServer.db.get_user_by_username_or_email(email)
+                if existing:
+                    self._set_headers(409)
+                    self.wfile.write(json.dumps({"error": "Username or email is already registered."}).encode("utf-8"))
+                    return
+
+                pw_hash = hash_password(password)
+                user = KnowledgeBaseServer.db.create_user(username, email, pw_hash)
+                if not user:
+                    self._set_headers(500)
+                    self.wfile.write(json.dumps({"error": "Could not create user account."}).encode("utf-8"))
+                    return
+
+                token = create_jwt_token({"user_id": user["id"], "username": user["username"]})
+                self._set_headers(201)
+                self.wfile.write(json.dumps({"token": token, "user": user}).encode("utf-8"))
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        # 2. Auth: Login
+        if self.path == "/api/auth/login":
+            try:
+                body = json.loads(post_data.decode("utf-8")) if post_data else {}
+                identifier = body.get("username") or body.get("email") or ""
+                password = body.get("password", "")
+
+                if not identifier or not password:
+                    self._set_headers(400)
+                    self.wfile.write(json.dumps({"error": "Username/email and password required."}).encode("utf-8"))
+                    return
+
+                user = KnowledgeBaseServer.db.get_user_by_username_or_email(identifier.strip())
+                if not user or not verify_password(password, user.get("password_hash", "")):
+                    self._set_headers(401)
+                    self.wfile.write(json.dumps({"error": "Invalid username/email or password."}).encode("utf-8"))
+                    return
+
+                KnowledgeBaseServer.db.update_last_login(user["id"])
+                token = create_jwt_token({"user_id": user["id"], "username": user["username"]})
+                self._set_headers(200)
+                self.wfile.write(json.dumps({
+                    "token": token,
+                    "user": {
+                        "id": user["id"],
+                        "username": user["username"],
+                        "email": user["email"],
+                        "role": user.get("role", "developer")
+                    }
+                }).encode("utf-8"))
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        # 3. Auth: Logout
+        if self.path == "/api/auth/logout":
+            self._set_headers(200)
+            self.wfile.write(json.dumps({"success": True, "message": "Logged out successfully"}).encode("utf-8"))
+            return
+
+        # 4. Project: Create / Save Project & Snapshot
+        if self.path == "/api/projects":
+            try:
+                user = self._get_authenticated_user()
+                if not user:
+                    self._set_headers(401)
+                    self.wfile.write(json.dumps({"error": "Authentication required to create and save projects."}).encode("utf-8"))
+                    return
+
+                body = json.loads(post_data.decode("utf-8")) if post_data else {}
+                name = body.get("name", "Untitled Codebase").strip()
+                description = body.get("description", "")
+                is_public = bool(body.get("is_public", False))
+                metrics = body.get("metrics") or KnowledgeBaseServer.cached_analysis or {}
+                file_tree = body.get("file_tree") or metrics.get("file_tree", {})
+
+                project = KnowledgeBaseServer.db.create_project(
+                    user_id=user["id"],
+                    name=name,
+                    description=description,
+                    is_public=is_public,
+                    metrics=metrics,
+                    file_tree=file_tree
+                )
+                if not project:
+                    self._set_headers(500)
+                    self.wfile.write(json.dumps({"error": "Failed to create project record."}).encode("utf-8"))
+                    return
+
+                self._set_headers(201)
+                self.wfile.write(json.dumps(project).encode("utf-8"))
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        # 5. Project: Share Token generation /api/projects/{id}/share
+        if self.path.startswith("/api/projects/") and self.path.endswith("/share"):
+            try:
+                user = self._get_authenticated_user()
+                if not user:
+                    self._set_headers(401)
+                    self.wfile.write(json.dumps({"error": "Authentication required."}).encode("utf-8"))
+                    return
+
+                parts = self.path.strip("/").split("/")
+                project_id = parts[2]
+                share_token = KnowledgeBaseServer.db.create_or_get_share_token(project_id, user["id"])
+                if not share_token:
+                    self._set_headers(403)
+                    self.wfile.write(json.dumps({"error": "Project not found or not owned by user."}).encode("utf-8"))
+                    return
+
+                self._set_headers(200)
+                self.wfile.write(json.dumps({
+                    "success": True,
+                    "share_token": share_token,
+                    "share_url": f"/app?share={share_token}"
+                }).encode("utf-8"))
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        # 6. Scanners and LLM batch APIs
         if self.path == "/api/scan-local":
             try:
                 body = json.loads(post_data.decode("utf-8")) if post_data else {}

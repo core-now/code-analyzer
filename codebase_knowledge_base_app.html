@@ -1047,6 +1047,42 @@
       </button>
       <input type="file" id="importJsonHeaderInput" accept=".json" class="hidden" onchange="handleImportJsonFile(event)" />
 
+      <!-- Auth & Projects Navigation -->
+      <div id="authHeaderContainer" class="flex items-center space-x-2 pl-2 border-l border-brand-border/60">
+        <!-- Logged Out State -->
+        <div id="loggedOutSection" class="flex items-center space-x-1.5">
+          <button onclick="openAuthModal('login')" class="text-xs font-mono px-2.5 py-1.5 rounded-lg bg-brand-dark border border-brand-border hover:border-brand-orange text-zinc-300 hover:text-white flex items-center space-x-1.5 transition">
+            <i data-lucide="log-in" class="w-3.5 h-3.5 text-brand-orange"></i>
+            <span>Login</span>
+          </button>
+          <button onclick="openAuthModal('register')" class="text-xs font-mono px-2.5 py-1.5 rounded-lg bg-[#63B22F]/20 text-[#63B22F] border border-[#63B22F]/40 hover:bg-[#63B22F] hover:text-black font-semibold flex items-center space-x-1 transition">
+            <i data-lucide="user-plus" class="w-3.5 h-3.5"></i>
+            <span>Register</span>
+          </button>
+        </div>
+
+        <!-- Logged In State -->
+        <div id="loggedInSection" class="hidden flex items-center space-x-2">
+          <button onclick="openProjectsDrawer()" title="📂 Meine gespeicherten Projekte & Snapshots" class="text-xs font-mono px-2.5 py-1.5 rounded-lg bg-brand-dark border border-[#D9FF3D]/40 text-[#D9FF3D] hover:bg-[#D9FF3D]/10 flex items-center space-x-1.5 transition">
+            <i data-lucide="folder-kanban" class="w-3.5 h-3.5 text-[#D9FF3D]"></i>
+            <span class="font-bold">Meine Projekte</span>
+          </button>
+
+          <button onclick="saveCurrentProjectToCloud()" title="💾 Aktuelle Codebase in Cloud/MSSQL speichern" class="text-xs font-mono px-2.5 py-1.5 rounded-lg bg-brand-dark border border-brand-border hover:border-brand-orange text-zinc-300 hover:text-white flex items-center space-x-1 transition">
+            <i data-lucide="cloud-upload" class="w-3.5 h-3.5 text-brand-orange"></i>
+            <span class="hidden sm:inline">Projekt sichern</span>
+          </button>
+
+          <div class="flex items-center space-x-1.5 px-2 py-1 rounded-lg bg-brand-dark border border-brand-border text-xs font-mono">
+            <span class="w-2 h-2 rounded-full bg-[#63B22F]"></span>
+            <span id="headerUsernameDisplay" class="text-zinc-200 font-semibold max-w-[90px] truncate">User</span>
+            <button onclick="handleUserLogout()" title="Abmelden" class="text-zinc-500 hover:text-rose-400 p-0.5 ml-1 transition">
+              <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
       <!-- Settings Button -->
       <!-- Global Dark / Light Theme Toggle -->
       <button id="btnGlobalThemeToggle" onclick="toggleGlobalAppTheme()" title="Design-Modus wechseln (Dark / Light Theme)" class="text-xs font-mono px-2.5 py-1.5 rounded-lg bg-brand-dark border border-brand-border hover:border-brand-orange text-zinc-300 hover:text-white flex items-center space-x-1.5 transition">
@@ -1054,7 +1090,7 @@
         <span id="globalThemeText" class="hidden sm:inline">Light Mode</span>
       </button>
 
-      <button onclick="openSettingsModal()" id="settingsHeaderBtn" title="Engine, Scanner & Theme Settings" class="text-xs font-mono px-3 py-1.5 rounded-lg bg-brand-dark border border-brand-border hover:border-brand-orange text-zinc-300 hover:text-white flex items-center space-x-1.5 transition">
+      <button onclick="openSettingsModal()" id="settingsHeaderBtn" title="Engine, Scanner, BYO-Ollama & Theme Settings" class="text-xs font-mono px-3 py-1.5 rounded-lg bg-brand-dark border border-brand-border hover:border-brand-orange text-zinc-300 hover:text-white flex items-center space-x-1.5 transition">
         <i data-lucide="settings" class="w-3.5 h-3.5 text-brand-orange"></i>
         <span>⚙️ Settings</span>
       </button>
@@ -2173,25 +2209,42 @@
       <!-- Modal Body (Scrollable) -->
       <div class="py-5 overflow-y-auto space-y-6 flex-1 pr-1.5">
         
-        <!-- Section 1: LLM Configuration -->
+        <!-- Section 1: LLM Configuration & BYO-Ollama -->
         <div class="space-y-3">
-          <div class="flex items-center space-x-2 text-xs font-bold text-zinc-200 uppercase tracking-wider">
-            <i data-lucide="cpu" class="w-4 h-4 text-brand-orange"></i>
-            <span>1. LLM-Konfiguration & Endpunkte</span>
+          <div class="flex items-center justify-between text-xs font-bold text-zinc-200 uppercase tracking-wider">
+            <div class="flex items-center space-x-2">
+              <i data-lucide="cpu" class="w-4 h-4 text-brand-orange"></i>
+              <span>1. LLM-Konfiguration & BYO-Ollama</span>
+            </div>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#63B22F]/20 text-[#63B22F] border border-[#63B22F]/40 font-bold">Ollama / LocalAI</span>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 bg-brand-dark/70 p-4 rounded-xl border border-brand-border/70">
+            <!-- Quick Presets -->
+            <div class="md:col-span-2 flex items-center space-x-2 pb-1 border-b border-brand-border/60">
+              <span class="text-[10px] font-mono uppercase text-zinc-400 font-bold">Quick Presets:</span>
+              <button type="button" onclick="setLLMPreset('local-ollama')" class="px-2 py-0.5 rounded bg-brand-card hover:bg-brand-dark border border-brand-border hover:border-brand-orange text-[10px] font-mono text-zinc-300 hover:text-white transition">
+                🦙 Lokales Ollama (Port 11434)
+              </button>
+              <button type="button" onclick="setLLMPreset('docker-ollama')" class="px-2 py-0.5 rounded bg-brand-card hover:bg-brand-dark border border-brand-border hover:border-brand-orange text-[10px] font-mono text-zinc-300 hover:text-white transition">
+                🐳 Docker Ollama
+              </button>
+              <button type="button" onclick="setLLMPreset('backend-proxy')" class="px-2 py-0.5 rounded bg-brand-card hover:bg-brand-dark border border-brand-border hover:border-brand-orange text-[10px] font-mono text-zinc-300 hover:text-white transition">
+                ⚡ Analyzer Proxy (Port 8084)
+              </button>
+            </div>
+
             <div class="md:col-span-2">
               <label class="block text-[11px] font-mono font-medium text-zinc-300 mb-1">
-                Endpoint-URL
+                Endpoint-URL (Ollama / OpenAI-kompatibel)
               </label>
-              <input type="text" id="setting-llm-endpoint" class="w-full bg-brand-card border border-brand-border rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-brand-orange transition" placeholder="http://localhost:8084/v1/chat/completions" />
-              <p class="text-[10px] text-zinc-500 mt-1">OpenAI API-kompatibler Endpunkt (z.B. LocalAI, Ollama, llama.cpp, vLLM)</p>
+              <input type="text" id="setting-llm-endpoint" class="w-full bg-brand-card border border-brand-border rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-brand-orange transition" placeholder="http://localhost:11434/v1/chat/completions" />
+              <p class="text-[10px] text-zinc-500 mt-1">Konfiguriere deinen lokalen Ollama Server (z.B. <code>http://localhost:11434/v1/chat/completions</code> oder Server-Backend).</p>
             </div>
             <div>
               <label class="block text-[11px] font-mono font-medium text-zinc-300 mb-1">
                 Modell-Name / Alias
               </label>
-              <input type="text" id="setting-llm-model" class="w-full bg-brand-card border border-brand-border rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-brand-orange transition" placeholder="local-model" />
+              <input type="text" id="setting-llm-model" class="w-full bg-brand-card border border-brand-border rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-brand-orange transition" placeholder="qwen2.5-coder:7b" />
             </div>
             <div>
               <label class="block text-[11px] font-mono font-medium text-zinc-300 mb-1">
@@ -2331,6 +2384,109 @@
             <span>💾 Speichern & Anwenden</span>
           </button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Auth (Login / Register) Modal -->
+  <div id="authModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="max-w-md w-full bg-brand-card/95 border border-brand-orange/50 rounded-2xl p-6 shadow-2xl corenow-glow flex flex-col overflow-hidden relative">
+      <!-- Header -->
+      <div class="flex items-center justify-between pb-3 border-b border-brand-border">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-8 h-8 rounded-lg bg-brand-dark border border-brand-orange flex items-center justify-center text-brand-orange">
+            <i data-lucide="shield-check" class="w-4 h-4"></i>
+          </div>
+          <div>
+            <h3 id="authModalTitle" class="font-bold text-sm text-white font-mono">DEVELOPER LOGIN</h3>
+            <p id="authModalSubtitle" class="text-[11px] text-zinc-400 font-mono">Zugang zu eigenen Projekten & Snapshots</p>
+          </div>
+        </div>
+        <button onclick="closeAuthModal()" class="text-zinc-400 hover:text-white p-1 rounded hover:bg-brand-dark transition">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <!-- Form Error Banner -->
+      <div id="authErrorBanner" class="hidden mt-3 p-2.5 rounded-lg bg-rose-950/50 border border-rose-500/60 text-rose-300 text-xs font-mono"></div>
+
+      <!-- Auth Form -->
+      <form id="authForm" onsubmit="handleAuthSubmit(event)" class="mt-4 space-y-3.5 font-mono text-xs">
+        <div>
+          <label class="block text-[11px] text-zinc-400 mb-1">Benutzername</label>
+          <input type="text" id="authUsernameInput" required placeholder="dev_alex" class="w-full bg-brand-dark border border-brand-border rounded-lg px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-brand-orange transition" />
+        </div>
+
+        <div id="authEmailGroup" class="hidden">
+          <label class="block text-[11px] text-zinc-400 mb-1">E-Mail-Adresse</label>
+          <input type="email" id="authEmailInput" placeholder="alex@company.com" class="w-full bg-brand-dark border border-brand-border rounded-lg px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-brand-orange transition" />
+        </div>
+
+        <div>
+          <label class="block text-[11px] text-zinc-400 mb-1">Passwort</label>
+          <input type="password" id="authPasswordInput" required placeholder="••••••••" class="w-full bg-brand-dark border border-brand-border rounded-lg px-3 py-2 text-white placeholder-zinc-600 focus:outline-none focus:border-brand-orange transition" />
+        </div>
+
+        <button type="submit" id="authSubmitBtn" class="w-full py-2.5 rounded-lg bg-brand-orange text-black font-bold text-xs hover:opacity-90 transition shadow-lg shadow-orange-950 flex items-center justify-center space-x-2">
+          <i data-lucide="log-in" class="w-4 h-4"></i>
+          <span id="authSubmitBtnText">Anmelden</span>
+        </button>
+      </form>
+
+      <!-- Toggle Mode Footer -->
+      <div class="mt-4 pt-3 border-t border-brand-border flex items-center justify-between text-[11px] font-mono">
+        <span id="authToggleHint" class="text-zinc-500">Noch kein Account?</span>
+        <button type="button" onclick="toggleAuthMode()" id="authToggleBtn" class="text-brand-orange hover:underline font-semibold">
+          Kostenlos registrieren
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Projects & Snapshots Drawer / Modal -->
+  <div id="projectsDrawerModal" class="fixed inset-0 bg-black/80 backdrop-blur-md z-50 hidden flex items-center justify-center p-4">
+    <div class="max-w-3xl w-full bg-brand-card/95 border border-[#D9FF3D]/40 rounded-2xl p-6 shadow-2xl flex flex-col max-h-[88vh] overflow-hidden relative">
+      <!-- Header -->
+      <div class="flex items-center justify-between pb-4 border-b border-brand-border flex-shrink-0">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 rounded-xl bg-brand-dark border border-[#D9FF3D] flex items-center justify-center text-[#D9FF3D]">
+            <i data-lucide="folder-kanban" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-extrabold text-sm text-white font-mono tracking-wide">PROJEKTE & ARCHITEKTUR-SNAPSHOTS</h3>
+            <p class="text-[11px] text-zinc-400 font-mono">Gespeicherte MSSQL & Cloud Snapshots wiederherstellen oder teilen</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-2">
+          <button onclick="fetchAndRenderProjectsList()" title="Aktualisieren" class="p-1.5 rounded-lg bg-brand-dark border border-brand-border hover:border-brand-orange text-zinc-400 hover:text-white transition">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+          </button>
+          <button onclick="closeProjectsDrawer()" class="text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-brand-dark transition">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Save Current Project Bar -->
+      <div class="my-3 p-3 rounded-xl bg-brand-dark/90 border border-brand-border/80 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+        <div class="flex items-center space-x-2 w-full sm:w-auto">
+          <span class="text-xs font-mono text-zinc-300 font-semibold">Aktuelle Analyse speichern:</span>
+          <input type="text" id="saveProjectNameInput" placeholder="Projektname (z.B. Backend Service)" class="bg-brand-card border border-brand-border rounded px-2.5 py-1 text-xs font-mono text-white placeholder-zinc-600 focus:outline-none focus:border-brand-orange flex-1 sm:w-48" />
+        </div>
+        <div class="flex items-center space-x-2 w-full sm:w-auto justify-end">
+          <label class="flex items-center space-x-1.5 text-[11px] font-mono text-zinc-400 cursor-pointer">
+            <input type="checkbox" id="saveProjectPublicCheckbox" class="rounded accent-brand-orange" />
+            <span>Öffentlich</span>
+          </label>
+          <button onclick="executeSaveCurrentProject()" class="px-3 py-1.5 rounded bg-brand-orange text-black font-bold text-xs font-mono hover:opacity-90 transition shadow">
+            💾 Snapshot anlegen
+          </button>
+        </div>
+      </div>
+
+      <!-- Projects List Container (Scrollable) -->
+      <div id="projectsListContainer" class="flex-1 overflow-y-auto space-y-2.5 pr-1 custom-scrollbar">
+        <div class="text-center py-8 text-zinc-500 font-mono text-xs">Lade Projekte...</div>
       </div>
     </div>
   </div>
@@ -2567,6 +2723,21 @@
       }, false);
     }
 
+    function setLLMPreset(preset) {
+      const endpointInput = document.getElementById('setting-llm-endpoint');
+      const modelInput = document.getElementById('setting-llm-model');
+      if (preset === 'local-ollama') {
+        if (endpointInput) endpointInput.value = 'http://localhost:11434/v1/chat/completions';
+        if (modelInput && (!modelInput.value || modelInput.value === 'local-model')) modelInput.value = 'qwen2.5-coder:7b';
+      } else if (preset === 'docker-ollama') {
+        if (endpointInput) endpointInput.value = 'http://ollama:11434/v1/chat/completions';
+        if (modelInput && (!modelInput.value || modelInput.value === 'local-model')) modelInput.value = 'qwen2.5-coder:7b';
+      } else if (preset === 'backend-proxy') {
+        if (endpointInput) endpointInput.value = 'http://localhost:8084/v1/chat/completions';
+        if (modelInput && (!modelInput.value || modelInput.value === 'local-model')) modelInput.value = 'qwen2.5-coder:7b';
+      }
+    }
+
     function openSettingsModal() {
       const modal = document.getElementById('settingsModal');
       if (!modal) return;
@@ -2643,9 +2814,372 @@
     let currentMatchIndex = -1;
     let d3Zoom = null;
 
-    // Initialize Settings & Icons
+    // --- Authentication & User Session State ---
+    let authState = {
+      token: localStorage.getItem('corenow_auth_token') || null,
+      user: null,
+      mode: 'login' // 'login' or 'register'
+    };
+
+    function getAuthHeaders() {
+      const headers = { 'Content-Type': 'application/json' };
+      if (authState.token) {
+        headers['Authorization'] = `Bearer ${authState.token}`;
+      }
+      return headers;
+    }
+
+    async function checkAuthSession() {
+      if (!authState.token) {
+        updateAuthHeaderUI(null);
+        return;
+      }
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: getAuthHeaders()
+        });
+        if (res.ok) {
+          const user = await res.json();
+          authState.user = user;
+          updateAuthHeaderUI(user);
+        } else {
+          // Token expired or invalid
+          authState.token = null;
+          authState.user = null;
+          localStorage.removeItem('corenow_auth_token');
+          updateAuthHeaderUI(null);
+        }
+      } catch (err) {
+        console.warn("Auth check failed:", err);
+      }
+    }
+
+    function updateAuthHeaderUI(user) {
+      const loggedOut = document.getElementById('loggedOutSection');
+      const loggedIn = document.getElementById('loggedInSection');
+      const usernameSpan = document.getElementById('headerUsernameDisplay');
+
+      if (user) {
+        if (loggedOut) loggedOut.classList.add('hidden');
+        if (loggedIn) loggedIn.classList.remove('hidden');
+        if (usernameSpan) usernameSpan.innerText = user.username;
+      } else {
+        if (loggedOut) loggedOut.classList.remove('hidden');
+        if (loggedIn) loggedIn.classList.add('hidden');
+      }
+      if (window.lucide) lucide.createIcons();
+    }
+
+    function openAuthModal(mode = 'login') {
+      authState.mode = mode;
+      const modal = document.getElementById('authModal');
+      const title = document.getElementById('authModalTitle');
+      const subtitle = document.getElementById('authModalSubtitle');
+      const emailGroup = document.getElementById('authEmailGroup');
+      const submitText = document.getElementById('authSubmitBtnText');
+      const toggleHint = document.getElementById('authToggleHint');
+      const toggleBtn = document.getElementById('authToggleBtn');
+      const errorBanner = document.getElementById('authErrorBanner');
+
+      if (errorBanner) errorBanner.classList.add('hidden');
+
+      if (mode === 'register') {
+        if (title) title.innerText = 'DEVELOPER REGISTRIERUNG';
+        if (subtitle) subtitle.innerText = 'Neuen Account für Multi-User Snapshots erstellen';
+        if (emailGroup) emailGroup.classList.remove('hidden');
+        if (submitText) submitText.innerText = 'Konto erstellen';
+        if (toggleHint) toggleHint.innerText = 'Bereits registriert?';
+        if (toggleBtn) toggleBtn.innerText = 'Jetzt anmelden';
+      } else {
+        if (title) title.innerText = 'DEVELOPER LOGIN';
+        if (subtitle) subtitle.innerText = 'Zugang zu eigenen Projekten & Snapshots';
+        if (emailGroup) emailGroup.classList.add('hidden');
+        if (submitText) submitText.innerText = 'Anmelden';
+        if (toggleHint) toggleHint.innerText = 'Noch kein Account?';
+        if (toggleBtn) toggleBtn.innerText = 'Kostenlos registrieren';
+      }
+
+      if (modal) modal.classList.remove('hidden');
+    }
+
+    function closeAuthModal() {
+      const modal = document.getElementById('authModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    function toggleAuthMode() {
+      openAuthModal(authState.mode === 'login' ? 'register' : 'login');
+    }
+
+    async function handleAuthSubmit(e) {
+      e.preventDefault();
+      const username = document.getElementById('authUsernameInput').value.trim();
+      const password = document.getElementById('authPasswordInput').value;
+      const email = document.getElementById('authEmailInput')?.value.trim();
+      const errorBanner = document.getElementById('authErrorBanner');
+
+      const isRegister = authState.mode === 'register';
+      const endpoint = isRegister ? '/api/auth/register' : '/api/auth/login';
+      const payload = isRegister ? { username, email, password } : { username, password };
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          if (errorBanner) {
+            errorBanner.innerText = data.error || 'Authentifizierung fehlgeschlagen.';
+            errorBanner.classList.remove('hidden');
+          }
+          return;
+        }
+
+        authState.token = data.token;
+        authState.user = data.user;
+        localStorage.setItem('corenow_auth_token', data.token);
+        updateAuthHeaderUI(data.user);
+        closeAuthModal();
+
+        // Show welcome toast
+        alert(`Willkommen zurück, ${data.user.username}!`);
+      } catch (err) {
+        if (errorBanner) {
+          errorBanner.innerText = 'Verbindungsfehler zum Auth-Server: ' + err.message;
+          errorBanner.classList.remove('hidden');
+        }
+      }
+    }
+
+    function handleUserLogout() {
+      if (confirm('Möchtest du dich wirklich abmelden?')) {
+        authState.token = null;
+        authState.user = null;
+        localStorage.removeItem('corenow_auth_token');
+        updateAuthHeaderUI(null);
+        fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+      }
+    }
+
+    // --- Projects & Snapshot Drawer ---
+    function openProjectsDrawer() {
+      if (!authState.user) {
+        openAuthModal('login');
+        return;
+      }
+      const modal = document.getElementById('projectsDrawerModal');
+      if (modal) modal.classList.remove('hidden');
+      fetchAndRenderProjectsList();
+    }
+
+    function closeProjectsDrawer() {
+      const modal = document.getElementById('projectsDrawerModal');
+      if (modal) modal.classList.add('hidden');
+    }
+
+    async function fetchAndRenderProjectsList() {
+      const container = document.getElementById('projectsListContainer');
+      if (!container) return;
+      container.innerHTML = '<div class="text-center py-6 text-zinc-500 font-mono text-xs">Lade Projekte...</div>';
+
+      try {
+        const res = await fetch('/api/projects', {
+          headers: getAuthHeaders()
+        });
+        if (!res.ok) {
+          container.innerHTML = '<div class="text-rose-400 p-4 text-center font-mono text-xs">Fehler beim Laden der Projekte.</div>';
+          return;
+        }
+        const data = await res.json();
+        const projects = data.projects || [];
+
+        if (projects.length === 0) {
+          container.innerHTML = `
+            <div class="text-center py-10 space-y-2 border border-dashed border-brand-border rounded-xl p-6 bg-brand-dark/50">
+              <i data-lucide="folder-x" class="w-8 h-8 text-zinc-600 mx-auto"></i>
+              <div class="text-zinc-400 text-xs font-mono">Keine Projekte in der Datenbank gefunden.</div>
+              <div class="text-[11px] text-zinc-500 font-mono">Scanne eine Codebase und klicke oben auf 'Snapshot anlegen'.</div>
+            </div>
+          `;
+          if (window.lucide) lucide.createIcons();
+          return;
+        }
+
+        container.innerHTML = projects.map(p => {
+          const isOwner = authState.user && p.user_id === authState.user.id;
+          const formattedDate = p.updated_at ? new Date(p.updated_at).toLocaleString('de-DE') : 'Vor Kurzem';
+          return `
+            <div class="p-3.5 rounded-xl bg-brand-dark/95 border border-brand-border hover:border-brand-orange/60 transition flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center space-x-2">
+                  <span class="text-xs font-bold text-white font-mono truncate">${escapeHtml(p.name)}</span>
+                  ${p.is_public ? '<span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-500/40">Öffentlich</span>' : '<span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400">Privat</span>'}
+                  ${isOwner ? '<span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-[#63B22F]/20 text-[#63B22F] border border-[#63B22F]/40">Mein Projekt</span>' : `<span class="text-[9px] text-zinc-500 font-mono">von ${escapeHtml(p.owner || 'Community')}</span>`}
+                </div>
+                ${p.description ? `<p class="text-[11px] text-zinc-400 font-mono truncate mt-0.5">${escapeHtml(p.description)}</p>` : ''}
+                <div class="text-[10px] text-zinc-500 font-mono mt-1 flex items-center space-x-2">
+                  <span>Zuletzt aktualisiert: ${formattedDate}</span>
+                </div>
+              </div>
+              <div class="flex items-center space-x-1.5 flex-shrink-0">
+                <button onclick="loadProjectById('${p.id}')" class="px-2.5 py-1.5 rounded bg-brand-dark border border-brand-orange text-brand-orange hover:bg-brand-orange hover:text-black font-bold text-xs font-mono transition flex items-center space-x-1">
+                  <i data-lucide="play" class="w-3 h-3"></i>
+                  <span>Laden</span>
+                </button>
+                ${isOwner ? `
+                  <button onclick="generateShareLink('${p.id}')" class="px-2 py-1.5 rounded bg-brand-dark border border-sky-500/40 text-sky-400 hover:bg-sky-500 hover:text-black text-xs font-mono transition flex items-center space-x-1" title="Share-Link erstellen">
+                    <i data-lucide="share-2" class="w-3 h-3"></i>
+                    <span>Teilen</span>
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        if (window.lucide) lucide.createIcons();
+      } catch (err) {
+        container.innerHTML = `<div class="text-rose-400 p-4 text-center font-mono text-xs">Verbindungsfehler: ${err.message}</div>`;
+      }
+    }
+
+    async function loadProjectById(projectId) {
+      showLoadingStatus("Lade Projekt aus MSSQL/Datenbank...");
+      try {
+        const res = await fetch(`/api/projects/${projectId}`, {
+          headers: getAuthHeaders()
+        });
+        if (!res.ok) {
+          alert("Fehler beim Abrufen des Projekts.");
+          hideLoadingStatus();
+          return;
+        }
+        const project = await res.json();
+        if (project.snapshot && project.snapshot.metrics) {
+          const analysisData = project.snapshot.metrics;
+          analysisData.project_name = project.name;
+          ingestAnalysisData(analysisData);
+          closeProjectsDrawer();
+          alert(`Projekt "${project.name}" erfolgreich geladen!`);
+        } else {
+          alert("Keine Snapshot-Metriken im Projekt gefunden.");
+        }
+      } catch (err) {
+        alert("Ladefehler: " + err.message);
+      } finally {
+        hideLoadingStatus();
+      }
+    }
+
+    async function generateShareLink(projectId) {
+      try {
+        const res = await fetch(`/api/projects/${projectId}/share`, {
+          method: 'POST',
+          headers: getAuthHeaders()
+        });
+        if (!res.ok) {
+          alert("Share-Token konnte nicht generiert werden.");
+          return;
+        }
+        const data = await res.json();
+        const fullUrl = `${window.location.origin}/app?share=${data.share_token}`;
+        navigator.clipboard.writeText(fullUrl);
+        alert(`Share-Link kopiert:\n${fullUrl}\n\nJeder mit diesem Link kann diesen Snapshot einsehen!`);
+      } catch (err) {
+        alert("Fehler: " + err.message);
+      }
+    }
+
+    async function executeSaveCurrentProject() {
+      if (!authState.user) {
+        openAuthModal('login');
+        return;
+      }
+      if (!currentData) {
+        alert("Bitte lade oder analysiere zuerst ein Projekt.");
+        return;
+      }
+
+      const nameInput = document.getElementById('saveProjectNameInput');
+      const isPublicCheck = document.getElementById('saveProjectPublicCheckbox');
+      const name = (nameInput && nameInput.value.trim()) || currentData.project_name || 'Codebase Snapshot';
+      const isPublic = isPublicCheck ? isPublicCheck.checked : false;
+
+      try {
+        showLoadingStatus("Speichere Snapshot in MSSQL/Datenbank...");
+        const res = await fetch('/api/projects', {
+          method: 'POST',
+          headers: getAuthHeaders(),
+          body: JSON.stringify({
+            name: name,
+            description: `Snapshot mit ${currentData.summary?.total_files || 0} Dateien und ${currentData.summary?.code_lines || 0} LOC`,
+            is_public: isPublic,
+            metrics: currentData,
+            file_tree: currentData.file_tree
+          })
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          alert("Fehler beim Speichern: " + (err.error || "Unbekannter Fehler"));
+          return;
+        }
+
+        const project = await res.json();
+        alert(`Projekt "${project.name}" erfolgreich in der Datenbank gesichert!`);
+        fetchAndRenderProjectsList();
+      } catch (err) {
+        alert("Speicherfehler: " + err.message);
+      } finally {
+        hideLoadingStatus();
+      }
+    }
+
+    function saveCurrentProjectToCloud() {
+      openProjectsDrawer();
+    }
+
+    // Helper: URL Parameter Check for ?share=token
+    async function checkShareUrlParameter() {
+      const urlParams = new URLSearchParams(window.location.search);
+      const shareToken = urlParams.get('share');
+      if (shareToken) {
+        showLoadingStatus("Lade geteilten Snapshot...");
+        try {
+          const res = await fetch(`/api/share/${shareToken}`);
+          if (res.ok) {
+            const project = await res.json();
+            if (project.snapshot && project.snapshot.metrics) {
+              const data = project.snapshot.metrics;
+              data.project_name = project.name;
+              ingestAnalysisData(data);
+              alert(`Öffentlicher Snapshot "${project.name}" erfolgreich geladen!`);
+            }
+          }
+        } catch (err) {
+          console.warn("Share token loading error:", err);
+        } finally {
+          hideLoadingStatus();
+        }
+      }
+    }
+
+    // Escape HTML Helper
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/[&<>'"]/g, 
+        tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+      );
+    }
+
+    // Initialize Settings, Auth & Icons
     loadSettings();
     lucide.createIcons();
+    checkAuthSession();
+    checkShareUrlParameter();
 
     // View Switching
     function switchView(viewName) {

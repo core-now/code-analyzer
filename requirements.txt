@@ -1,5 +1,11 @@
 # Codebase Analyzer Dependencies
-# The core analyzer is implemented using Python standard libraries (http.server, urllib, json, hashlib, zipfile, etc.).
-# Optional utilities for enhanced tooling, testing, and production servers:
+# Core HTTP, JSON and SQLite operate out-of-the-box via Python standard libraries.
 urllib3>=2.0.0
 requests>=2.31.0
+python-dotenv>=1.0.0
+pyjwt>=2.8.0
+bcrypt>=4.1.0
+
+# Optional MSSQL Database Drivers (pymssql / pyodbc)
+pymssql>=2.2.8
+pyodbc>=5.0.1

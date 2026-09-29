@@ -16,6 +16,14 @@ services:
       - LLM_MODEL=qwen2.5-coder:7b
       - CACHE_FILE=/workspace/.codebase_cache.json
       - RESULTS_FILE=/workspace/.codebase_results.json
+      # Database Configuration (MSSQL / SQLite fallback)
+      - DB_SERVER=${DB_SERVER:-}
+      - DB_PORT=${DB_PORT:-1433}
+      - DB_USER=${DB_USER:-}
+      - DB_SECRET=${DB_SECRET:-}
+      - DB_NAME=${DB_NAME:-AnalyzerDB}
+      - SQLITE_DB_PATH=/workspace/analyzer.db
+      - AUTH_SECRET=${SUPER_SALT:-${AUTH_SECRET:-corenow-analyzer-production-secret-9988}}
     volumes:
       # Mount target codebase directory to /workspace
       - .:/workspace
