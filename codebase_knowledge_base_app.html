@@ -583,13 +583,19 @@
     }
 
     /* City Legend Bottom-Left */
+    html.light #cityLegendContainer,
     html.light #view-city .absolute.bottom-3.left-3 {
-      background-color: rgba(255, 255, 255, 0.95) !important;
+      background-color: rgba(255, 255, 255, 0.96) !important;
       border-color: #CBD5E1 !important;
       color: #0F172A !important;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1) !important;
     }
+    html.light #cityLegendContainer span,
     html.light #view-city .absolute.bottom-3.left-3 span {
       color: #334155 !important;
+    }
+    html.light #cityLegendContainer .border-brand-border\/40 {
+      border-color: #E2E8F0 !important;
     }
 
     /* City Hover Tooltip */
@@ -1758,21 +1764,44 @@
         <!-- Three.js Canvas Container -->
         <div id="cityCanvasContainer" class="w-full h-full absolute inset-0"></div>
 
-        <!-- Bottom Left Legend -->
-        <div class="absolute bottom-3 left-3 z-30 pointer-events-auto bg-brand-dark/95 border border-brand-border/80 backdrop-blur-md px-3 py-1.5 rounded-xl text-[11px] font-mono shadow-lg flex items-center gap-3 max-w-2xl flex-wrap">
-          <span class="text-zinc-400 font-bold text-[10px] uppercase tracking-wider">Legend:</span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#FF8000]"></span> <span class="text-zinc-300">Rust</span></span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#38BDF8]"></span> <span class="text-zinc-300">TypeScript</span></span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#F59E0B]"></span> <span class="text-zinc-300">JavaScript</span></span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#10B981]"></span> <span class="text-zinc-300">Python</span></span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#EC4899]"></span> <span class="text-zinc-300">CSS</span></span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#E34F26]"></span> <span class="text-zinc-300">HTML</span></span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#CBCB41]"></span> <span class="text-zinc-300">JSON/Config</span></span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#94A3B8]"></span> <span class="text-zinc-300">Markdown</span></span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#89E051]"></span> <span class="text-zinc-300">Shell</span></span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#63B22F]"></span> <span class="text-[#63B22F]">Low-Poly Tree</span></span>
-          <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-[#D9FF3D]"></span> <span class="text-[#D9FF3D]">Tron Street</span></span>
-          <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#FF8EAB] animate-ping"></span> <span class="text-[#FF8EAB]">Risk Beacon</span></span>
+        <!-- Collapsible & Scrollable Bottom Left Legend -->
+        <div id="cityLegendContainer" class="absolute bottom-3 left-3 z-30 pointer-events-auto bg-brand-dark/95 border border-brand-border/80 backdrop-blur-md rounded-xl text-[11px] font-mono shadow-lg transition-all duration-200 max-w-xl flex flex-col overflow-hidden">
+          <!-- Legend Header / Toggle Bar -->
+          <div onclick="window.codeCityApp && window.codeCityApp.toggleLegend()" class="px-3 py-1.5 flex items-center justify-between cursor-pointer select-none hover:bg-brand-card/50 transition border-b border-brand-border/40 gap-3">
+            <div class="flex items-center gap-2">
+              <i data-lucide="layers" class="w-3.5 h-3.5 text-brand-orange"></i>
+              <span class="text-zinc-300 font-bold text-[10px] uppercase tracking-wider">City Legende</span>
+              <span id="cityLegendCountBadge" class="text-[9px] px-1.5 py-0.2 rounded-full bg-brand-orange/20 text-brand-orange font-semibold">12 Typen</span>
+            </div>
+            <div class="flex items-center gap-1.5 text-zinc-400 text-[10px]">
+              <span id="cityLegendToggleText" class="text-[9px] text-zinc-500">Einklappen</span>
+              <i id="cityLegendToggleIcon" data-lucide="chevron-down" class="w-3.5 h-3.5 transition-transform duration-200"></i>
+            </div>
+          </div>
+
+          <!-- Dynamic Scrollable Legend Body -->
+          <div id="cityLegendBody" class="p-2.5 max-h-48 overflow-y-auto custom-scrollbar flex flex-wrap items-center gap-x-3 gap-y-2 transition-all">
+            <!-- Dynamic items rendered by updateLegend() -->
+            <div id="cityLegendDynamicItems" class="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#FF8000]"></span> <span class="text-zinc-300">Rust</span></span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#00599C]"></span> <span class="text-zinc-300">C++</span></span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#3178C6]"></span> <span class="text-zinc-300">TypeScript</span></span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#F59E0B]"></span> <span class="text-zinc-300">JavaScript</span></span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#3572A5]"></span> <span class="text-zinc-300">Python</span></span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#563D7C]"></span> <span class="text-zinc-300">CSS</span></span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#E34F26]"></span> <span class="text-zinc-300">HTML</span></span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#CBCB41]"></span> <span class="text-zinc-300">JSON</span></span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#94A3B8]"></span> <span class="text-zinc-300">Markdown</span></span>
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#89E051]"></span> <span class="text-zinc-300">Shell</span></span>
+            </div>
+
+            <!-- Static City Environment Elements -->
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-2 pt-1 border-t border-brand-border/40 w-full text-[10px]">
+              <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#63B22F]"></span> <span class="text-[#63B22F]">Low-Poly Tree</span></span>
+              <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-[#D9FF3D]"></span> <span class="text-[#D9FF3D]">Tron Street</span></span>
+              <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#FF8EAB] animate-ping"></span> <span class="text-[#FF8EAB]">Risk Beacon</span></span>
+            </div>
+          </div>
         </div>
 
         <!-- Floating Hover Mini-HUD (Follows cursor on raycast hover) -->
@@ -3137,60 +3166,201 @@
 
     // --- Client-Side Code Parsing & Analysis ---
     function detectLanguage(ext) {
+      if (!ext) return 'Other';
+      const cleanExt = ext.startsWith('.') ? ext.toLowerCase() : '.' + ext.toLowerCase();
       const map = {
+        // Rust
         '.rs': 'Rust',
+        
+        // C & C++ (Distinct mapping and exact extension matching)
+        '.cpp': 'C++',
+        '.cxx': 'C++',
+        '.cc': 'C++',
+        '.c++': 'C++',
+        '.cp': 'C++',
+        '.hpp': 'C++',
+        '.hxx': 'C++',
+        '.hh': 'C++',
+        '.h++': 'C++',
+        '.inl': 'C++',
+        '.ipp': 'C++',
+        '.tpp': 'C++',
+        '.c': 'C',
+        '.h': 'C',
+        
+        // C#
+        '.cs': 'C#',
+        '.csx': 'C#',
+
+        // Java / JVM
+        '.java': 'Java',
+        '.kt': 'Kotlin',
+        '.kts': 'Kotlin',
+        '.scala': 'Scala',
+        '.sc': 'Scala',
+        '.groovy': 'Groovy',
+        '.gvy': 'Groovy',
+        '.clj': 'Clojure',
+        '.cljs': 'Clojure',
+
+        // Apple Ecosystem
+        '.swift': 'Swift',
+        '.m': 'Objective-C',
+        '.mm': 'Objective-C++',
+
+        // Go
+        '.go': 'Go',
+
+        // Python
+        '.py': 'Python',
+        '.pyw': 'Python',
+        '.pyx': 'Python',
+        '.pxd': 'Python',
+        '.ipynb': 'Jupyter Notebook',
+
+        // TypeScript & JavaScript
         '.ts': 'TypeScript',
         '.tsx': 'TypeScript React',
         '.js': 'JavaScript',
         '.jsx': 'React JS',
-        '.py': 'Python',
-        '.go': 'Go',
-        '.java': 'Java',
-        '.c': 'C',
-        '.cpp': 'C++',
-        '.cc': 'C++',
-        '.h': 'C/C++ Header',
-        '.hpp': 'C++ Header',
-        '.cs': 'C#',
+        '.mjs': 'JavaScript',
+        '.cjs': 'JavaScript',
+
+        // Web Frameworks
+        '.vue': 'Vue',
+        '.svelte': 'Svelte',
+        '.astro': 'Astro',
+
+        // Web Markup & Styling
         '.html': 'HTML',
+        '.htm': 'HTML',
+        '.xhtml': 'HTML',
         '.css': 'CSS',
         '.scss': 'SCSS',
+        '.sass': 'Sass',
+        '.less': 'Less',
+        '.styl': 'Stylus',
+
+        // Backend Web / Scripting
+        '.php': 'PHP',
+        '.phtml': 'PHP',
+        '.php4': 'PHP',
+        '.php5': 'PHP',
+        '.php7': 'PHP',
+        '.rb': 'Ruby',
+        '.erb': 'Ruby',
+        '.rake': 'Ruby',
+        '.gemspec': 'Ruby',
+        '.lua': 'Lua',
+        '.dart': 'Dart',
+        '.pl': 'Perl',
+        '.pm': 'Perl',
+        '.r': 'R',
+        '.jl': 'Julia',
+        '.ex': 'Elixir',
+        '.exs': 'Elixir',
+        '.erl': 'Erlang',
+        '.hrl': 'Erlang',
+        '.hs': 'Haskell',
+        '.lhs': 'Haskell',
+        '.zig': 'Zig',
+        '.nim': 'Nim',
+        '.sol': 'Solidity',
+        '.v': 'V',
+        '.d': 'D',
+        '.pas': 'Pascal',
+        '.pp': 'Pascal',
+        '.f': 'Fortran',
+        '.f90': 'Fortran',
+        '.f95': 'Fortran',
+        '.asm': 'Assembly',
+        '.s': 'Assembly',
+
+        // Shell & Terminal Scripting
+        '.sh': 'Shell',
+        '.bash': 'Bash',
+        '.zsh': 'Zsh',
+        '.fish': 'Fish',
+        '.ps1': 'PowerShell',
+        '.psm1': 'PowerShell',
+        '.psd1': 'PowerShell',
+        '.bat': 'Batch',
+        '.cmd': 'Batch',
+
+        // Database & Query Languages
+        '.sql': 'SQL',
+        '.psql': 'SQL',
+        '.mysql': 'SQL',
+        '.prisma': 'Prisma',
+        '.graphql': 'GraphQL',
+        '.gql': 'GraphQL',
+
+        // Data & Configuration Formats
         '.json': 'JSON',
+        '.json5': 'JSON5',
+        '.jsonc': 'JSON',
         '.toml': 'TOML',
         '.yaml': 'YAML',
         '.yml': 'YAML',
+        '.xml': 'XML',
+        '.svg': 'SVG',
+        '.ini': 'INI',
+        '.cfg': 'Config',
+        '.conf': 'Config',
+        '.config': 'Config',
+        '.env': 'Env Config',
+        '.properties': 'Properties',
+        '.csv': 'CSV',
+        '.tsv': 'TSV',
+
+        // Documentation & Text
         '.md': 'Markdown',
-        '.sql': 'SQL',
-        '.sh': 'Shell',
-        '.bash': 'Bash',
-        '.vue': 'Vue',
-        '.svelte': 'Svelte',
-        '.rb': 'Ruby',
-        '.php': 'PHP',
-        '.swift': 'Swift',
-        '.kt': 'Kotlin'
+        '.markdown': 'Markdown',
+        '.mdown': 'Markdown',
+        '.mkd': 'Markdown',
+        '.mdx': 'MDX',
+        '.rst': 'reStructuredText',
+        '.txt': 'Text',
+        '.pdf': 'PDF',
+        '.adoc': 'AsciiDoc',
+
+        // DevOps, Build & Cloud
+        '.dockerfile': 'Dockerfile',
+        'dockerfile': 'Dockerfile',
+        '.tf': 'Terraform',
+        '.tfvars': 'Terraform',
+        '.proto': 'Protocol Buffers',
+        '.wasm': 'WebAssembly',
+        '.wat': 'WebAssembly'
       };
-      return map[ext.toLowerCase()] || 'Other';
+      return map[cleanExt] || 'Other';
     }
 
     const CODE_EXTENSIONS = new Set([
-      '.rs', '.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.c', '.cpp', '.cc', '.cxx',
-      '.h', '.hpp', '.cs', '.java', '.kt', '.swift', '.php', '.rb', '.sh', '.bash',
-      '.ps1', '.vue', '.svelte', '.dart', '.lua', '.scala'
+      '.rs', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py', '.pyw', '.pyx', '.ipynb',
+      '.go', '.c', '.cpp', '.cc', '.cxx', '.c++', '.cp', '.h', '.hpp', '.hxx', '.hh', '.h++',
+      '.cs', '.csx', '.java', '.kt', '.kts', '.scala', '.sc', '.groovy', '.swift', '.m', '.mm',
+      '.php', '.phtml', '.rb', '.erb', '.rake', '.lua', '.dart', '.sh', '.bash', '.zsh', '.fish',
+      '.ps1', '.psm1', '.vue', '.svelte', '.astro', '.sql', '.prisma', '.graphql', '.gql',
+      '.zig', '.nim', '.sol', '.ex', '.exs', '.erl', '.hs', '.jl', '.r', '.pl', '.pm',
+      '.asm', '.s', '.proto', '.wasm', '.wat', '.v', '.d', '.pas', '.clj', '.cljs'
     ]);
 
     const PROGRAM_LOGIC_EXTENSIONS = new Set([
-      '.rs', '.ts', '.tsx', '.js', '.jsx', '.py', '.go', '.c', '.cpp', '.cs', '.java', '.php', '.rb', '.swift', '.kt'
+      '.rs', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs', '.py', '.go', '.c', '.cpp', '.cc', '.cxx',
+      '.cs', '.java', '.kt', '.swift', '.php', '.rb', '.lua', '.dart', '.zig', '.nim', '.sol', '.ex', '.erl', '.hs'
     ]);
 
     const UI_TEMPLATE_EXTENSIONS = new Set([
-      '.html', '.htm', '.vue', '.svelte'
+      '.html', '.htm', '.vue', '.svelte', '.astro', '.jsx', '.tsx'
     ]);
 
     const NON_CODE_EXTENSIONS = new Set([
-      '.md', '.markdown', '.mdown', '.mkd', '.txt', '.json', '.toml', '.yaml', '.yml', '.xml',
-      '.csv', '.tsv', '.lock', '.env', '.svg', '.html', '.htm', '.css', '.scss', '.sass', '.less',
-      '.ini', '.cfg', '.conf', '.log', '.map', '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.ico'
+      '.md', '.markdown', '.mdown', '.mkd', '.mdx', '.rst', '.txt', '.adoc',
+      '.json', '.json5', '.jsonc', '.toml', '.yaml', '.yml', '.xml',
+      '.csv', '.tsv', '.lock', '.lockb', '.env', '.svg', '.css', '.scss', '.sass', '.less', '.styl',
+      '.ini', '.cfg', '.conf', '.config', '.properties', '.log', '.map',
+      '.pdf', '.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp', '.bmp', '.woff', '.woff2', '.ttf', '.eot'
     ]);
 
     function isCodeFile(filename) {
@@ -4164,70 +4334,161 @@
       const lower = (filename || '').toLowerCase();
       const ext = lower.includes('.') ? lower.substring(lower.lastIndexOf('.')) : '';
 
-      if (lower === 'dockerfile' || lower.startsWith('dockerfile.')) return { icon: 'container', color: '#0db7ed', emoji: '🐳' };
+      if (lower === 'dockerfile' || lower.startsWith('dockerfile.')) return { icon: 'container', color: '#2496ED', emoji: '🐳' };
       if (lower === 'makefile') return { icon: 'file-cog', color: '#f59e0b', emoji: '⚙️' };
       if (lower.endsWith('.lock') || lower.endsWith('.lockb')) return { icon: 'lock', color: '#71717a', emoji: '🔒' };
-      if (lower.startsWith('.env')) return { icon: 'key', color: '#eab308', emoji: '🔑' };
-      if (lower.startsWith('.git')) return { icon: 'git-branch', color: '#f97316', emoji: '🌿' };
+      if (lower.startsWith('.env')) return { icon: 'key', color: '#0060AC', emoji: '🔑' };
+      if (lower.startsWith('.git')) return { icon: 'git-branch', color: '#F05138', emoji: '🌿' };
 
       switch (ext) {
+        // Rust
         case '.rs':
-          return { icon: 'cpu', color: '#f97316', emoji: '🦀' };
+          return { icon: 'cpu', color: '#FF8000', emoji: '🦀' };
+        // TypeScript & React
         case '.ts':
-          return { icon: 'file-code-2', color: '#3b82f6', emoji: '🔷' };
+          return { icon: 'file-code-2', color: '#3178C6', emoji: '🔷' };
         case '.tsx':
-          return { icon: 'file-code-2', color: '#60a5fa', emoji: '⚛️' };
+          return { icon: 'file-code-2', color: '#38BDF8', emoji: '⚛️' };
+        // JavaScript
         case '.js':
         case '.mjs':
         case '.cjs':
-          return { icon: 'file-code', color: '#eab308', emoji: '🟨' };
+          return { icon: 'file-code', color: '#F59E0B', emoji: '🟨' };
         case '.jsx':
-          return { icon: 'file-code', color: '#38bdf8', emoji: '⚛️' };
+          return { icon: 'file-code', color: '#61DAFB', emoji: '⚛️' };
+        // Python
         case '.py':
         case '.pyw':
-          return { icon: 'file-code-2', color: '#38bdf8', emoji: '🐍' };
-        case '.go':
-          return { icon: 'file-code-2', color: '#00add8', emoji: '🐹' };
-        case '.html':
-        case '.htm':
-          return { icon: 'globe', color: '#ea580c', emoji: '🌐' };
-        case '.css':
-        case '.scss':
-        case '.sass':
-        case '.less':
-          return { icon: 'palette', color: '#38bdf8', emoji: '🎨' };
-        case '.json':
-          return { icon: 'file-json', color: '#facc15', emoji: '📋' };
-        case '.toml':
-        case '.yaml':
-        case '.yml':
-        case '.ini':
-        case '.conf':
-        case '.config':
-          return { icon: 'settings', color: '#a1a1aa', emoji: '⚙️' };
-        case '.md':
-        case '.markdown':
-          return { icon: 'file-text', color: '#38bdf8', emoji: '📝' };
-        case '.sql':
-          return { icon: 'database', color: '#ec4899', emoji: '🗄️' };
-        case '.sh':
-        case '.bash':
-        case '.zsh':
-        case '.ps1':
-        case '.bat':
-        case '.cmd':
-          return { icon: 'terminal', color: '#22c55e', emoji: '💻' };
-        case '.c':
+        case '.pyx':
+          return { icon: 'file-code-2', color: '#3572A5', emoji: '🐍' };
+        case '.ipynb':
+          return { icon: 'file-code-2', color: '#DA5B0B', emoji: '📓' };
+        // C & C++ (Fixed: Distinct C++ from CSS!)
         case '.cpp':
         case '.cc':
         case '.cxx':
-        case '.h':
+        case '.c++':
+        case '.cp':
         case '.hpp':
-          return { icon: 'file-code', color: '#6366f1', emoji: '⚡' };
+        case '.hxx':
+        case '.hh':
+        case '.h++':
+        case '.inl':
+        case '.ipp':
+        case '.tpp':
+          return { icon: 'file-code', color: '#00599C', emoji: '⚡' };
+        case '.c':
+        case '.h':
+          return { icon: 'file-code', color: '#555555', emoji: '🇨' };
+        // C#
+        case '.cs':
+        case '.csx':
+          return { icon: 'file-code', color: '#178600', emoji: '🎯' };
+        // Java & JVM
         case '.java':
-          return { icon: 'coffee', color: '#ef4444', emoji: '☕' };
+          return { icon: 'coffee', color: '#B07219', emoji: '☕' };
+        case '.kt':
+        case '.kts':
+          return { icon: 'file-code', color: '#A97BFF', emoji: '🟣' };
+        case '.scala':
+        case '.sc':
+          return { icon: 'file-code', color: '#DC322F', emoji: '🔴' };
+        // Apple / Swift
+        case '.swift':
+          return { icon: 'file-code', color: '#F05138', emoji: '🕊️' };
+        // Go
+        case '.go':
+          return { icon: 'file-code-2', color: '#00ADD8', emoji: '🐹' };
+        // PHP
+        case '.php':
+        case '.phtml':
+          return { icon: 'file-code', color: '#4F5D95', emoji: '🐘' };
+        // Ruby
+        case '.rb':
+        case '.erb':
+        case '.rake':
+          return { icon: 'file-code', color: '#CC342D', emoji: '💎' };
+        // Web Components
+        case '.vue':
+          return { icon: 'file-code', color: '#41B883', emoji: '💚' };
+        case '.svelte':
+          return { icon: 'file-code', color: '#FF3E00', emoji: '🧡' };
+        case '.astro':
+          return { icon: 'file-code', color: '#FF5D01', emoji: '🚀' };
+        // HTML & Styling
+        case '.html':
+        case '.htm':
+        case '.xhtml':
+          return { icon: 'globe', color: '#E34F26', emoji: '🌐' };
+        case '.css':
+          return { icon: 'palette', color: '#563D7C', emoji: '🎨' };
+        case '.scss':
+        case '.sass':
+          return { icon: 'palette', color: '#EC4899', emoji: '💅' };
+        case '.less':
+        case '.styl':
+          return { icon: 'palette', color: '#1D365D', emoji: '🎨' };
+        // Shell & Terminal
+        case '.sh':
+        case '.bash':
+        case '.zsh':
+          return { icon: 'terminal', color: '#89E051', emoji: '🐚' };
+        case '.ps1':
+        case '.psm1':
+        case '.psd1':
+          return { icon: 'terminal', color: '#012456', emoji: '💻' };
+        case '.bat':
+        case '.cmd':
+          return { icon: 'terminal', color: '#C1F12E', emoji: '⚙️' };
+        // Database & Query
+        case '.sql':
+        case '.psql':
+        case '.mysql':
+          return { icon: 'database', color: '#E38C00', emoji: '🗄️' };
+        case '.prisma':
+          return { icon: 'database', color: '#2D3748', emoji: '🔺' };
+        case '.graphql':
+        case '.gql':
+          return { icon: 'database', color: '#E10098', emoji: '🕸️' };
+        // Data & Config
+        case '.json':
+        case '.json5':
+        case '.jsonc':
+          return { icon: 'file-json', color: '#CBCB41', emoji: '📋' };
+        case '.toml':
+          return { icon: 'settings', color: '#9C4221', emoji: '📐' };
+        case '.yaml':
+        case '.yml':
+          return { icon: 'settings', color: '#CB171E', emoji: '📝' };
+        case '.xml':
+          return { icon: 'file-code', color: '#0060AC', emoji: '📑' };
         case '.svg':
-          return { icon: 'image', color: '#f59e0b', emoji: '🖼️' };
+          return { icon: 'image', color: '#FFB13B', emoji: '🖼️' };
+        case '.ini':
+        case '.conf':
+        case '.config':
+        case '.properties':
+          return { icon: 'settings', color: '#6E7681', emoji: '⚙️' };
+        // Docs & Markdown
+        case '.md':
+        case '.markdown':
+        case '.mdx':
+          return { icon: 'file-text', color: '#94A3B8', emoji: '📝' };
+        // Other Languages
+        case '.dart':
+          return { icon: 'file-code', color: '#00B4AB', emoji: '🎯' };
+        case '.zig':
+          return { icon: 'file-code', color: '#F7A41D', emoji: '⚡' };
+        case '.lua':
+          return { icon: 'file-code', color: '#000080', emoji: '🌙' };
+        case '.sol':
+          return { icon: 'file-code', color: '#AA6746', emoji: '⛓️' };
+        case '.ex':
+        case '.exs':
+          return { icon: 'file-code', color: '#6E4A7E', emoji: '💧' };
+        case '.tf':
+        case '.tfvars':
+          return { icon: 'container', color: '#7B42BC', emoji: '☁️' };
         default:
           return { icon: 'file', color: '#a1a1aa', emoji: '📄' };
       }
@@ -4399,41 +4660,84 @@
     // --- Code Viewer & Syntax Highlighting ---
     function getLanguageFromPath(path) {
       if (!path) return 'javascript';
-      const ext = path.split('.').pop().toLowerCase();
+      const cleanPath = path.split('?')[0].split('#')[0];
+      const lastDot = cleanPath.lastIndexOf('.');
+      if (lastDot === -1) {
+        const base = cleanPath.split(/[/\\]/).pop().toLowerCase();
+        if (base === 'dockerfile') return 'dockerfile';
+        if (base === 'makefile') return 'makefile';
+        return 'javascript';
+      }
+      const ext = cleanPath.substring(lastDot).toLowerCase();
       const map = {
-        'rs': 'rust',
-        'ts': 'typescript',
-        'tsx': 'typescript',
-        'js': 'javascript',
-        'jsx': 'javascript',
-        'mjs': 'javascript',
-        'cjs': 'javascript',
-        'py': 'python',
-        'go': 'go',
-        'c': 'c',
-        'h': 'c',
-        'cpp': 'cpp',
-        'cc': 'cpp',
-        'cxx': 'cpp',
-        'hpp': 'cpp',
-        'html': 'markup',
-        'htm': 'markup',
-        'svg': 'markup',
-        'xml': 'markup',
-        'css': 'css',
-        'scss': 'css',
-        'sass': 'css',
-        'less': 'css',
-        'sql': 'sql',
-        'json': 'json',
-        'toml': 'toml',
-        'yaml': 'yaml',
-        'yml': 'yaml',
-        'md': 'markdown',
-        'markdown': 'markdown',
-        'sh': 'bash',
-        'bash': 'bash',
-        'zsh': 'bash'
+        '.rs': 'rust',
+        '.ts': 'typescript',
+        '.tsx': 'typescript',
+        '.js': 'javascript',
+        '.jsx': 'javascript',
+        '.mjs': 'javascript',
+        '.cjs': 'javascript',
+        '.py': 'python',
+        '.pyw': 'python',
+        '.pyx': 'python',
+        '.ipynb': 'python',
+        '.go': 'go',
+        '.c': 'c',
+        '.h': 'c',
+        '.cpp': 'cpp',
+        '.cc': 'cpp',
+        '.cxx': 'cpp',
+        '.c++': 'cpp',
+        '.hpp': 'cpp',
+        '.hxx': 'cpp',
+        '.hh': 'cpp',
+        '.inl': 'cpp',
+        '.ipp': 'cpp',
+        '.cs': 'csharp',
+        '.csx': 'csharp',
+        '.java': 'java',
+        '.kt': 'kotlin',
+        '.kts': 'kotlin',
+        '.scala': 'scala',
+        '.swift': 'swift',
+        '.php': 'php',
+        '.rb': 'ruby',
+        '.vue': 'markup',
+        '.svelte': 'markup',
+        '.astro': 'markup',
+        '.html': 'markup',
+        '.htm': 'markup',
+        '.xhtml': 'markup',
+        '.svg': 'markup',
+        '.xml': 'markup',
+        '.css': 'css',
+        '.scss': 'css',
+        '.sass': 'css',
+        '.less': 'css',
+        '.sql': 'sql',
+        '.prisma': 'sql',
+        '.graphql': 'graphql',
+        '.gql': 'graphql',
+        '.json': 'json',
+        '.json5': 'json',
+        '.jsonc': 'json',
+        '.toml': 'toml',
+        '.yaml': 'yaml',
+        '.yml': 'yaml',
+        '.md': 'markdown',
+        '.markdown': 'markdown',
+        '.mdx': 'markdown',
+        '.sh': 'bash',
+        '.bash': 'bash',
+        '.zsh': 'bash',
+        '.fish': 'bash',
+        '.ps1': 'powershell',
+        '.bat': 'batch',
+        '.cmd': 'batch',
+        '.dart': 'dart',
+        '.lua': 'lua',
+        '.zig': 'zig',
+        '.sol': 'solidity'
       };
       return map[ext] || 'javascript';
     }
@@ -7887,30 +8191,84 @@ class CodeCityMetropolis {
           bgDark: 0x05050f
         };
 
-        // Vibrant High-Tech Language Color Palette (Exact 1:1 match with Legend)
+        // Vibrant High-Tech Language Color Palette (Exact 1:1 match with Legend & Linguist / VSCode)
         this.langColors = {
-          'Rust': 0xFF8000,        // #FF8000
-          'TypeScript': 0x38BDF8,  // #38BDF8
-          'JavaScript': 0xF59E0B,  // #F59E0B
-          'Python': 0x10B981,      // #10B981
-          'CSS': 0xEC4899,         // #EC4899
-          'HTML': 0xE34F26,        // #E34F26
-          'JSON': 0xCBCB41,        // #CBCB41
-          'TOML': 0x9C4221,        // #9C4221
-          'YAML': 0xCB171E,        // #CB171E
-          'Markdown': 0x94A3B8,    // #94A3B8
-          'Shell': 0x89E051,       // #89E051
-          'Go': 0x00ADD8,          // #00ADD8
-          'C': 0x64748B,           // #64748B
-          'C++': 0xF34B7D,         // #F34B7D
-          'C#': 0x178600,          // #178600
-          'Java': 0xB07219,        // #B07219
-          'PHP': 0x4F5D95,         // #4F5D95
-          'Ruby': 0x701516,        // #701516
-          'Vue': 0x4FC08D,         // #4FC08D
-          'React': 0x61DAFB,       // #61DAFB
-          'SQL': 0xE38C00,         // #E38C00
-          'Default': 0x818CF8      // #818CF8 (Modern Indigo tech default, distinct from trees)
+          // Rust
+          'Rust': 0xFF8000,              // #FF8000 (Vibrant Rust Orange)
+
+          // C & C++ (Fixed: Distinct C++ from CSS!)
+          'C++': 0x00599C,               // #00599C (C++ Deep Blue)
+          'C': 0x555555,                 // #555555 (C Classic Slate Dark)
+
+          // C# & JVM
+          'C#': 0x178600,                // #178600 (C# Forest Green)
+          'Java': 0xB07219,              // #B07219 (Java Caramel Brown)
+          'Kotlin': 0xA97BFF,            // #A97BFF (Kotlin Violet)
+          'Scala': 0xDC322F,             // #DC322F (Scala Crimson)
+
+          // Apple / Swift
+          'Swift': 0xF05138,             // #F05138 (Swift Vibrant Orange-Red)
+
+          // Go
+          'Go': 0x00ADD8,                // #00ADD8 (Go Cyan)
+
+          // Python
+          'Python': 0x3572A5,            // #3572A5 (Python Classic Blue)
+          'Jupyter Notebook': 0xDA5B0B,  // #DA5B0B (Jupyter Orange)
+
+          // TypeScript & JavaScript
+          'TypeScript': 0x3178C6,        // #3178C6 (TypeScript Standard Blue)
+          'TypeScript React': 0x38BDF8,  // #38BDF8 (TSX Sky Blue)
+          'JavaScript': 0xF59E0B,        // #F59E0B (JS Amber / Gold)
+          'React JS': 0x61DAFB,          // #61DAFB (React Cyan)
+
+          // Web Frameworks
+          'Vue': 0x41B883,               // #41B883 (Vue Emerald)
+          'Svelte': 0xFF3E00,            // #FF3E00 (Svelte Orange-Red)
+          'Astro': 0xFF5D01,             // #FF5D01 (Astro Bright Orange)
+
+          // Markup & Styling (Distinct from C++)
+          'HTML': 0xE34F26,              // #E34F26 (HTML Orange-Red)
+          'CSS': 0x563D7C,               // #563D7C (CSS Classic Purple)
+          'SCSS': 0xEC4899,              // #EC4899 (SCSS Hot Pink)
+          'Sass': 0xA259FF,              // #A259FF (Sass Lilac)
+          'Less': 0x1D365D,              // #1D365D (Less Navy)
+
+          // Backend Web / Scripting
+          'PHP': 0x4F5D95,               // #4F5D95 (PHP Indigo)
+          'Ruby': 0xCC342D,              // #CC342D (Ruby Ruby Red)
+          'Lua': 0x000080,               // #000080 (Lua Navy)
+          'Dart': 0x00B4AB,              // #00B4AB (Dart Teal)
+          'Elixir': 0x6E4A7E,            // #6E4A7E (Elixir Purple)
+          'Erlang': 0xB83998,            // #B83998 (Erlang Magenta)
+          'Haskell': 0x5E5086,           // #5E5086 (Haskell Purple)
+          'Zig': 0xF7A41D,               // #F7A41D (Zig Gold)
+          'Solidity': 0xAA6746,          // #AA6746 (Solidity Bronze)
+
+          // Shell & PowerShell
+          'Shell': 0x89E051,             // #89E051 (Bash Bright Green)
+          'Bash': 0x89E051,              // #89E051 (Bash Bright Green)
+          'PowerShell': 0x012456,        // #012456 (PowerShell Navy)
+          'Batch': 0xC1F12E,             // #C1F12E (Batch Lime)
+
+          // Databases
+          'SQL': 0xE38C00,               // #E38C00 (SQL Ochre)
+          'Prisma': 0x2D3748,            // #2D3748 (Prisma Charcoal)
+          'GraphQL': 0xE10098,           // #E10098 (GraphQL Pink)
+
+          // Data & Config
+          'JSON': 0xCBCB41,              // #CBCB41 (JSON Olive/Yellow)
+          'TOML': 0x9C4221,              // #9C4221 (TOML Brown-Orange)
+          'YAML': 0xCB171E,              // #CB171E (YAML Red)
+          'XML': 0x0060AC,               // #0060AC (XML Blue)
+          'Config': 0x6E7681,            // #6E7681 (Config Muted Slate)
+          'Markdown': 0x94A3B8,          // #94A3B8 (Markdown Slate)
+          'Dockerfile': 0x2496ED,        // #2496ED (Docker Blue)
+          'Terraform': 0x7B42BC,         // #7B42BC (Terraform Purple)
+
+          // Default
+          'Default': 0x818CF8,           // #818CF8 (Modern Indigo tech default)
+          'Other': 0x94A3B8              // #94A3B8 (Other Slate)
         };
 
         // Textures & Shared Materials Cache
@@ -8324,30 +8682,63 @@ class CodeCityMetropolis {
       }
 
       normalizeLanguageName(rawLang, path = '') {
-        const str = (rawLang || '').toString().trim().toLowerCase();
-        const ext = path ? path.split('.').pop().toLowerCase() : '';
+        const cleanPath = (path || '').split('?')[0].split('#')[0];
+        let ext = '';
+        if (cleanPath.includes('.')) {
+          ext = cleanPath.substring(cleanPath.lastIndexOf('.')).toLowerCase();
+        }
 
-        if (str === 'rs' || str === 'rust' || ext === 'rs') return 'Rust';
-        if (str === 'ts' || str === 'tsx' || str === 'typescript' || ext === 'ts' || ext === 'tsx') return 'TypeScript';
-        if (str === 'js' || str === 'jsx' || str === 'mjs' || str === 'cjs' || str === 'javascript' || ext === 'js' || ext === 'jsx' || ext === 'mjs' || ext === 'cjs') return 'JavaScript';
-        if (str === 'py' || str === 'python' || ext === 'py') return 'Python';
-        if (str === 'css' || str === 'scss' || str === 'sass' || str === 'less' || ext === 'css' || ext === 'scss' || ext === 'sass' || ext === 'less') return 'CSS';
-        if (str === 'html' || str === 'htm' || str === 'markup' || str === 'svg' || str === 'xml' || ext === 'html' || ext === 'htm' || ext === 'svg' || ext === 'xml') return 'HTML';
-        if (str === 'json' || ext === 'json') return 'JSON';
-        if (str === 'toml' || ext === 'toml') return 'TOML';
-        if (str === 'yaml' || str === 'yml' || ext === 'yaml' || ext === 'yml') return 'YAML';
-        if (str === 'md' || str === 'markdown' || ext === 'md' || ext === 'markdown') return 'Markdown';
-        if (str === 'sh' || str === 'bash' || str === 'zsh' || str === 'shell' || ext === 'sh' || ext === 'bash' || ext === 'zsh') return 'Shell';
-        if (str === 'go' || str === 'golang' || ext === 'go') return 'Go';
-        if (str === 'c' || str === 'h' || ext === 'c' || ext === 'h') return 'C';
-        if (str === 'cpp' || str === 'cc' || str === 'cxx' || str === 'hpp' || ext === 'cpp' || ext === 'cc' || ext === 'cxx' || ext === 'hpp') return 'C++';
-        if (str === 'cs' || str === 'c#' || str === 'csharp' || ext === 'cs') return 'C#';
-        if (str === 'java' || ext === 'java') return 'Java';
-        if (str === 'php' || ext === 'php') return 'PHP';
-        if (str === 'ruby' || str === 'rb' || ext === 'rb') return 'Ruby';
-        if (str === 'vue' || ext === 'vue') return 'Vue';
-        if (str === 'react' || str === 'jsx') return 'React';
-        if (str === 'sql' || ext === 'sql') return 'SQL';
+        // Direct extension mapping takes precedence for accuracy (Fix: C++ vs CSS)
+        if (ext) {
+          const detected = detectLanguage(ext);
+          if (detected && detected !== 'Other') {
+            return detected;
+          }
+        }
+
+        const str = (rawLang || '').toString().trim().toLowerCase();
+        if (str === 'rs' || str === 'rust') return 'Rust';
+        if (str === 'cpp' || str === 'c++' || str === 'cc' || str === 'cxx' || str === 'hpp' || str === 'hxx') return 'C++';
+        if (str === 'c' || str === 'h') return 'C';
+        if (str === 'cs' || str === 'c#' || str === 'csharp') return 'C#';
+        if (str === 'java') return 'Java';
+        if (str === 'kt' || str === 'kotlin') return 'Kotlin';
+        if (str === 'scala') return 'Scala';
+        if (str === 'swift') return 'Swift';
+        if (str === 'go' || str === 'golang') return 'Go';
+        if (str === 'py' || str === 'python') return 'Python';
+        if (str === 'ts' || str === 'typescript') return 'TypeScript';
+        if (str === 'tsx' || str === 'typescript react') return 'TypeScript React';
+        if (str === 'js' || str === 'javascript') return 'JavaScript';
+        if (str === 'jsx' || str === 'react js' || str === 'react') return 'React JS';
+        if (str === 'vue') return 'Vue';
+        if (str === 'svelte') return 'Svelte';
+        if (str === 'astro') return 'Astro';
+        if (str === 'html' || str === 'htm' || str === 'markup') return 'HTML';
+        if (str === 'css') return 'CSS';
+        if (str === 'scss') return 'SCSS';
+        if (str === 'sass') return 'Sass';
+        if (str === 'less') return 'Less';
+        if (str === 'php') return 'PHP';
+        if (str === 'rb' || str === 'ruby') return 'Ruby';
+        if (str === 'sh' || str === 'bash' || str === 'shell') return 'Shell';
+        if (str === 'zsh') return 'Zsh';
+        if (str === 'ps1' || str === 'powershell') return 'PowerShell';
+        if (str === 'bat' || str === 'batch' || str === 'cmd') return 'Batch';
+        if (str === 'sql') return 'SQL';
+        if (str === 'prisma') return 'Prisma';
+        if (str === 'graphql' || str === 'gql') return 'GraphQL';
+        if (str === 'json') return 'JSON';
+        if (str === 'toml') return 'TOML';
+        if (str === 'yaml' || str === 'yml') return 'YAML';
+        if (str === 'xml' || str === 'svg') return 'XML';
+        if (str === 'md' || str === 'markdown') return 'Markdown';
+        if (str === 'dockerfile') return 'Dockerfile';
+        if (str === 'terraform' || str === 'tf') return 'Terraform';
+        if (str === 'zig') return 'Zig';
+        if (str === 'lua') return 'Lua';
+        if (str === 'solidity' || str === 'sol') return 'Solidity';
+        if (str === 'elixir' || str === 'ex') return 'Elixir';
 
         if (rawLang && rawLang !== 'Default' && rawLang !== 'Code' && rawLang !== 'text') {
           return rawLang.charAt(0).toUpperCase() + rawLang.slice(1);
@@ -9848,6 +10239,68 @@ class CodeCityMetropolis {
         }
 
         this.updateHUDStats();
+        this.updateLegend(files);
+      }
+
+      updateLegend(files) {
+        const legendItemsEl = document.getElementById('cityLegendDynamicItems');
+        const countBadgeEl = document.getElementById('cityLegendCountBadge');
+        if (!legendItemsEl) return;
+
+        const langCounts = {};
+        (files || []).forEach(f => {
+          const lang = f.language || 'Default';
+          langCounts[lang] = (langCounts[lang] || 0) + 1;
+        });
+
+        const sortedLangs = Object.keys(langCounts).sort((a, b) => langCounts[b] - langCounts[a]);
+
+        if (countBadgeEl) {
+          countBadgeEl.innerText = `${sortedLangs.length} Typen`;
+        }
+
+        if (sortedLangs.length > 0) {
+          legendItemsEl.innerHTML = sortedLangs.map(lang => {
+            const hex = '#' + this.getLanguageColor(lang).toString(16).padStart(6, '0');
+            const count = langCounts[lang];
+            return `
+              <span class="flex items-center gap-1.5 hover:opacity-80 transition cursor-default" title="${escapeHtml(lang)} (${count} Dateien)">
+                <span class="w-2.5 h-2.5 rounded-sm flex-shrink-0 shadow-sm" style="background-color: ${hex};"></span>
+                <span class="text-zinc-200 font-medium">${escapeHtml(lang)}</span>
+                <span class="text-zinc-500 font-mono text-[9px]">(${count})</span>
+              </span>
+            `;
+          }).join('');
+        } else {
+          legendItemsEl.innerHTML = `
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#FF8000]"></span> <span class="text-zinc-300">Rust</span></span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#00599C]"></span> <span class="text-zinc-300">C++</span></span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#3178C6]"></span> <span class="text-zinc-300">TypeScript</span></span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#F59E0B]"></span> <span class="text-zinc-300">JavaScript</span></span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#3572A5]"></span> <span class="text-zinc-300">Python</span></span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#563D7C]"></span> <span class="text-zinc-300">CSS</span></span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#E34F26]"></span> <span class="text-zinc-300">HTML</span></span>
+            <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#CBCB41]"></span> <span class="text-zinc-300">JSON</span></span>
+          `;
+        }
+      }
+
+      toggleLegend() {
+        const body = document.getElementById('cityLegendBody');
+        const icon = document.getElementById('cityLegendToggleIcon');
+        const text = document.getElementById('cityLegendToggleText');
+        if (!body) return;
+
+        const isCollapsed = body.classList.contains('hidden');
+        if (isCollapsed) {
+          body.classList.remove('hidden');
+          if (icon) icon.classList.remove('-rotate-90');
+          if (text) text.innerText = 'Einklappen';
+        } else {
+          body.classList.add('hidden');
+          if (icon) icon.classList.add('-rotate-90');
+          if (text) text.innerText = 'Ausklappen';
+        }
       }
 
       toggleDistrictCollapse(districtPath) {
