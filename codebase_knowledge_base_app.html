@@ -1305,10 +1305,10 @@
                   </label>
                   <span id="inspectorSnippetRange" class="px-1.5 py-0.5 rounded bg-brand-dark border border-brand-border text-zinc-400 font-mono">Rust (Z. 1–30)</span>
                 </div>
-                <div class="bg-[#0c0c0f] border border-brand-border rounded-lg overflow-hidden flex font-mono text-[11px] max-h-48 shadow-inner">
-                  <div id="inspectorLineNumbers" class="select-none py-2 px-2 text-right text-zinc-600 bg-[#070709] border-r border-brand-border/60 leading-5 text-[10px] font-mono flex flex-col min-w-[2.2rem]">
+                <div class="bg-[#0c0c0f] border border-brand-border rounded-lg overflow-auto flex font-mono text-[11px] max-h-48 shadow-inner custom-scrollbar">
+                  <div id="inspectorLineNumbers" class="select-none py-2 px-2 text-right text-zinc-600 bg-[#070709] border-r border-brand-border/60 leading-5 text-[10px] font-mono flex flex-col min-w-[2.2rem] flex-shrink-0">
                   </div>
-                  <div id="inspectorCodeContent" class="flex-1 p-2 overflow-x-auto overflow-y-auto whitespace-pre leading-5 text-zinc-300">
+                  <div id="inspectorCodeContent" class="flex-1 p-2 whitespace-pre leading-5 text-zinc-300 overflow-visible">
                   </div>
                 </div>
               </div>
@@ -1485,9 +1485,9 @@
           </div>
 
           <!-- Code Content with Line Numbers -->
-          <div id="codeViewerScroll" class="flex-1 overflow-auto h-full max-h-full p-4 flex font-mono text-xs leading-6 bg-[#0E0E10] custom-scrollbar">
+          <div id="codeViewerScroll" class="flex-1 overflow-auto h-full max-h-full p-4 flex font-mono text-xs leading-6 bg-[#0E0E10] custom-scrollbar min-w-0">
             <div id="lineNumbers" class="line-number pr-4 border-r border-zinc-800 text-zinc-600 flex-shrink-0 select-none"></div>
-            <pre id="codeContent" class="flex-1 pl-4 text-zinc-300 whitespace-pre overflow-x-auto select-text font-mono h-full"></pre>
+            <pre id="codeContent" class="flex-1 pl-4 text-zinc-300 whitespace-pre overflow-visible select-text font-mono"></pre>
           </div>
 
           <!-- VSCodium Style Floating Search Bar -->
@@ -5021,7 +5021,7 @@
       const lang = getLanguageFromPath(resolvedPath);
       const codeElement = document.getElementById('codeContent');
       if (codeElement) {
-        codeElement.setAttribute('class', `flex-1 pl-4 text-zinc-300 whitespace-pre overflow-x-auto select-text language-${lang}`);
+        codeElement.setAttribute('class', `flex-1 pl-4 text-zinc-300 whitespace-pre overflow-visible select-text language-${lang}`);
         codeElement.innerHTML = highlightCode(content, lang);
       }
 
@@ -6629,7 +6629,7 @@
         }
 
         if (codeContentEl) {
-          codeContentEl.setAttribute('class', `flex-1 p-2 overflow-x-auto overflow-y-auto whitespace-pre leading-5 text-zinc-300 language-${lang}`);
+          codeContentEl.setAttribute('class', `flex-1 p-2 overflow-visible whitespace-pre leading-5 text-zinc-300 language-${lang}`);
           codeContentEl.innerHTML = highlightCode(snippetCode, lang);
         }
 
