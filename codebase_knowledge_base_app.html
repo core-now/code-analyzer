@@ -3746,32 +3746,45 @@
       const filesMap = {};
       const projectName = dirHandle.name || "Local_Project";
       const ignoredDirs = getIgnoredDirsSet();
-
-      async function scanDir(handle, currentPath = "") {
-        for await (const [name, entry] of handle.entries()) {
-          if (ignoredDirs.has(name.toLowerCase())) continue;
-          const entryPath = currentPath ? `${currentPath}/${name}` : name;
-
-          if (entry.kind === 'directory') {
-            await scanDir(entry, entryPath);
-          } else if (entry.kind === 'file') {
-            if (!isIgnoredFile(name)) {
-              try {
-                const file = await entry.getFile();
-                if (file.size <= 3 * 1024 * 1024) { // Up to 3MB per file
-                  const text = await file.text();
-                  filesMap[entryPath] = text;
-                }
-              } catch (e) {
-                console.warn(`Could not read file ${entryPath}:`, e);
-              }
-            }
-          }
-        }
-      }
+      const MAX_DEPTH = 30;
 
       try {
-        await scanDir(dirHandle);
+        // Iterative BFS queue to prevent any recursion call-stack overflows
+        const queue = [{ handle: dirHandle, path: "", depth: 0 }];
+        const visitedHandles = new Set();
+
+        while (queue.length > 0) {
+          const { handle, path, depth } = queue.shift();
+          if (depth > MAX_DEPTH) continue;
+
+          try {
+            for await (const [name, entry] of handle.entries()) {
+              if (ignoredDirs.has(name.toLowerCase())) continue;
+              const entryPath = path ? `${path}/${name}` : name;
+
+              if (entry.kind === 'directory') {
+                if (depth + 1 <= MAX_DEPTH) {
+                  queue.push({ handle: entry, path: entryPath, depth: depth + 1 });
+                }
+              } else if (entry.kind === 'file') {
+                if (!isIgnoredFile(name)) {
+                  try {
+                    const file = await entry.getFile();
+                    if (file.size <= 3 * 1024 * 1024) { // Up to 3MB per file
+                      const text = await file.text();
+                      filesMap[entryPath] = text;
+                    }
+                  } catch (e) {
+                    console.warn(`Could not read file ${entryPath}:`, e);
+                  }
+                }
+              }
+            }
+          } catch (iterErr) {
+            console.warn(`Could not iterate directory ${path || handle.name}:`, iterErr);
+          }
+        }
+
         hideLoadingStatus();
         if (Object.keys(filesMap).length === 0) {
           alert("No supported code files found in selected directory.");
@@ -3939,48 +3952,71 @@
       showLoadingStatus(`Reading ${dirEntry.name}...`);
       const filesMap = {};
       const ignoredDirs = getIgnoredDirsSet();
+      const MAX_DEPTH = 30;
 
-      async function scanEntry(entry, currentPath = "") {
-        if (ignoredDirs.has(entry.name.toLowerCase())) return;
-
-        if (entry.isFile) {
-          if (!isIgnoredFile(entry.name)) {
-            await new Promise((resolve) => {
-              entry.file(async (file) => {
-                if (file.size <= 3 * 1024 * 1024) {
-                  try {
-                    const text = await file.text();
-                    const fullPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
-                    filesMap[fullPath] = text;
-                  } catch (e) {
-                    console.warn(`Error reading ${entry.name}:`, e);
-                  }
-                }
-                resolve();
-              }, () => resolve());
-            });
-          }
-        } else if (entry.isDirectory) {
-          const dirReader = entry.createReader();
-          const nextPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
-          
-          const readAllEntries = async () => {
-            const entries = await new Promise((resolve) => {
-              dirReader.readEntries(resolve, () => resolve([]));
-            });
-            if (entries.length > 0) {
-              for (const child of entries) {
-                await scanEntry(child, nextPath);
-              }
-              await readAllEntries();
-            }
-          };
-          await readAllEntries();
+      // Iterative directory reader reader with chunked readEntries and queue to prevent call-stack overflow
+      async function readAllEntriesFromReader(dirReader) {
+        const allEntries = [];
+        while (true) {
+          const chunk = await new Promise((resolve) => {
+            dirReader.readEntries(
+              (results) => resolve(results || []),
+              () => resolve([])
+            );
+          });
+          if (!chunk || chunk.length === 0) break;
+          allEntries.push(...chunk);
         }
+        return allEntries;
       }
 
       try {
-        await scanEntry(dirEntry);
+        const queue = [{ entry: dirEntry, path: "", depth: 0 }];
+        const visited = new Set();
+
+        while (queue.length > 0) {
+          const { entry, path, depth } = queue.shift();
+          if (depth > MAX_DEPTH) continue;
+
+          if (entry.isFile) {
+            if (!isIgnoredFile(entry.name)) {
+              await new Promise((resolve) => {
+                entry.file(async (file) => {
+                  if (file.size <= 3 * 1024 * 1024) {
+                    try {
+                      const text = await file.text();
+                      const fullPath = path ? `${path}/${entry.name}` : entry.name;
+                      filesMap[fullPath] = text;
+                    } catch (e) {
+                      console.warn(`Error reading ${entry.name}:`, e);
+                    }
+                  }
+                  resolve();
+                }, () => resolve());
+              });
+            }
+          } else if (entry.isDirectory) {
+            if (ignoredDirs.has(entry.name.toLowerCase())) continue;
+            const nextPath = path ? `${path}/${entry.name}` : (path === "" && entry === dirEntry ? "" : entry.name);
+            
+            // Avoid loops on identical full path
+            const visitedKey = (entry.fullPath || nextPath || entry.name).toLowerCase();
+            if (visited.has(visitedKey)) continue;
+            visited.add(visitedKey);
+
+            if (depth + 1 <= MAX_DEPTH) {
+              const dirReader = entry.createReader();
+              const children = await readAllEntriesFromReader(dirReader);
+              for (const child of children) {
+                if (child.isDirectory && ignoredDirs.has(child.name.toLowerCase())) {
+                  continue;
+                }
+                queue.push({ entry: child, path: nextPath, depth: depth + 1 });
+              }
+            }
+          }
+        }
+
         hideLoadingStatus();
         if (Object.keys(filesMap).length === 0) {
           alert("No supported code files found in dropped directory.");
@@ -3990,6 +4026,7 @@
       } catch (err) {
         hideLoadingStatus();
         console.error("Webkit dir read failed:", err);
+        alert("Failed to read folder: " + err.message);
       }
     }
 
