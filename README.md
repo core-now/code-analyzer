@@ -1,7 +1,7 @@
-# 🏙️ CoreNow Code Intelligence & Codebase Analyzer
+# 🏙️ Code Intelligence & Codebase Analyzer (Metropolis)
 
 <p align="center">
-  <img src="assets/ai-matrix-city.svg" alt="CoreNow Code Intelligence 3D Matrix City" width="100%" />
+  <img src="assets/ai-matrix-city.svg" alt="Code Intelligence 3D Matrix City" width="100%" />
 </p>
 
 [![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
