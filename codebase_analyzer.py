@@ -24,6 +24,7 @@ import zipfile
 import argparse
 import urllib.request
 import urllib.error
+from urllib.parse import urlparse, parse_qs
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -1222,6 +1223,141 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
         return None
 
     def do_GET(self):
+
+        # Git Tree API
+        if self.path.startswith("/api/git/tree"):
+            parsed = urlparse(self.path)
+            query = parse_qs(parsed.query)
+            url = query.get("url", [""])[0].strip()
+            branch = query.get("branch", ["main"])[0].strip()
+            token = query.get("token", [""])[0].strip()
+
+            if not url:
+                self._set_headers(400)
+                self.wfile.write(b'{"error": "url parameter is required"}')
+                return
+
+            domain = urlparse(url).netloc
+            path_parts = urlparse(url).path.strip("/").split("/")
+            if len(path_parts) < 2:
+                self._set_headers(400)
+                self.wfile.write(b'{"error": "Invalid repository URL"}')
+                return
+            
+            owner = path_parts[0]
+            repo = path_parts[1]
+            if repo.endswith(".git"):
+                repo = repo[:-4]
+
+            api_url = ""
+            headers = {"User-Agent": "CodeAnalyzer/1.0"}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+
+            if "github.com" in domain:
+                api_url = f"https://api.github.com/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
+            elif "gitlab.com" in domain:
+                enc_repo = f"{owner}%2F{repo}"
+                api_url = f"https://gitlab.com/api/v4/projects/{enc_repo}/repository/tree?recursive=1&ref={branch}"
+            else:
+                api_url = f"https://{domain}/api/v1/repos/{owner}/{repo}/git/trees/{branch}?recursive=1"
+
+            try:
+                req = urllib.request.Request(api_url, headers=headers)
+                with urllib.request.urlopen(req) as response:
+                    tree_data = json.loads(response.read().decode())
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                return
+
+            file_list = []
+            items = tree_data.get("tree", []) if isinstance(tree_data, dict) else tree_data
+            if not items and isinstance(tree_data, list):
+                items = tree_data
+            
+            analyzer = KnowledgeBaseServer.scanner
+            
+            for item in items:
+                item_type = item.get("type")
+                if item_type not in ("blob", "file"):
+                    continue
+                path_str = item.get("path", "")
+                if analyzer.should_ignore(path_str):
+                    continue
+                size = item.get("size", 0)
+                
+                norm_path = path_str.replace('\\', '/')
+                lang = analyzer.detect_language(norm_path)
+                is_code = analyzer.is_code_file(norm_path)
+                lines = max(1, size // 30)
+                
+                dominant_role = "Core" if is_code else "Utils"
+                lower_p = norm_path.lower()
+                if any(k in lower_p for k in ["auth", "session", "login", "jwt", "secret", "token"]):
+                    dominant_role = "Auth"
+                elif any(k in lower_p for k in ["api", "route", "endpoint", "ipc", "command", "http", "controller"]):
+                    dominant_role = "API"
+                elif any(k in lower_p for k in ["db", "data", "model", "schema", "store", "state", "sql", "orm", "migrate"]):
+                    dominant_role = "Data"
+                elif any(k in lower_p for k in ["ui", "view", "component", "page", "style", "css", "theme", "html", "jsx", "tsx", "svelte", "vue"]):
+                    dominant_role = "UI"
+                elif any(k in lower_p for k in ["main", "app", "index", "init", "server", "core", "bootstrap"]):
+                    dominant_role = "Lifecycle"
+                elif any(k in lower_p for k in ["util", "helper", "common", "config", "type", "constant", "lib", "test"]):
+                    dominant_role = "Utils"
+
+                file_list.append({
+                    "path": norm_path,
+                    "language": lang,
+                    "code_lines": lines if is_code else 0,
+                    "comment_lines": 0,
+                    "blank_lines": 0,
+                    "total_lines": lines,
+                    "complexity": 1 if is_code else 0,
+                    "intent_role": dominant_role,
+                    "sha256": item.get("sha", ""),
+                    "size": size,
+                    "symbols": {"functions": [], "classes": [], "structs": [], "interfaces": [], "imports": [], "categorized_functions": []},
+                    "complexity_triggers": [],
+                    "is_data_heavy": False,
+                    "content": ""
+                })
+            
+            project_name = repo
+            analyzer.delta_stats = {"cached": 0, "scanned": len(file_list), "total": len(file_list)}
+            aggregated = analyzer._aggregate(file_list, project_name=project_name)
+            
+            self._set_headers(200)
+            self.wfile.write(json.dumps(aggregated).encode("utf-8"))
+            return
+
+        # Git Raw Content API
+        if self.path.startswith("/api/git/raw"):
+            parsed = urlparse(self.path)
+            query = parse_qs(parsed.query)
+            url = query.get("url", [""])[0].strip()
+            token = query.get("token", [""])[0].strip()
+
+            if not url:
+                self._set_headers(400)
+                self.wfile.write(b'{"error": "url parameter is required"}')
+                return
+
+            headers = {"User-Agent": "CodeAnalyzer/1.0"}
+            if token:
+                headers["Authorization"] = f"Bearer {token}"
+
+            try:
+                req = urllib.request.Request(url, headers=headers)
+                with urllib.request.urlopen(req) as response:
+                    content_raw = response.read()
+                    self._set_headers(200, "text/plain")
+                    self.wfile.write(content_raw)
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
         # Static UI Routes
         if self.path == "/" or self.path.startswith("/app"):
             html_path = Path(__file__).parent / "codebase_knowledge_base_app.html"

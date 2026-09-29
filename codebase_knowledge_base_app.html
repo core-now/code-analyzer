@@ -1015,6 +1015,11 @@
         <span>Load Demo Repo</span>
       </button>
 
+      <button onclick="openGitImportModal()" class="text-xs font-mono px-3 py-1.5 rounded-lg bg-brand-dark border border-brand-border hover:border-[#D9FF3D] text-[#D9FF3D] flex items-center space-x-1.5 transition">
+        <i data-lucide="globe" class="w-3.5 h-3.5"></i>
+        <span>Import Git Repo</span>
+      </button>
+
       <button id="openFolderBtn" onclick="openDirectoryPicker()" class="text-xs font-mono px-3 py-1.5 rounded-lg bg-brand-dark border border-brand-border hover:border-zinc-400 text-zinc-300 hover:text-white flex items-center space-x-1.5 transition">
         <i data-lucide="folder-open" class="w-3.5 h-3.5 text-zinc-400"></i>
         <span>Open Folder</span>
@@ -1151,10 +1156,14 @@
             Drag & drop a folder or <span class="text-brand-orange font-mono font-semibold">.ZIP</span>, pick a local directory, or launch the interactive demo project.
           </p>
 
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 w-full">
+          <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5 w-full">
             <button onclick="loadDemoCodebase()" class="py-2.5 px-3 rounded-lg bg-brand-dark border border-brand-orange/60 text-brand-orange hover:bg-brand-orange/10 font-mono text-xs font-semibold flex items-center justify-center space-x-1.5 transition">
               <i data-lucide="zap" class="w-4 h-4"></i>
               <span>Demo Repo</span>
+            </button>
+            <button onclick="openGitImportModal()" class="py-2.5 px-3 rounded-lg bg-[#414141] border border-[#63B22F] text-[#D9FF3D] hover:bg-[#63B22F]/20 font-mono text-xs font-semibold flex items-center justify-center space-x-1.5 transition">
+              <i data-lucide="globe" class="w-4 h-4 text-[#D9FF3D]"></i>
+              <span>Git Import</span>
             </button>
             <button id="dropzoneFolderBtn" onclick="openDirectoryPicker()" class="py-2.5 px-3 rounded-lg bg-brand-dark border border-zinc-600 hover:border-brand-orange text-white font-mono text-xs font-semibold flex items-center justify-center space-x-1.5 transition">
               <i data-lucide="folder-open" class="w-4 h-4 text-brand-orange"></i>
@@ -12466,5 +12475,241 @@ class CodeCityMetropolis {
     }
 
 </script>
+
+  <!-- GIT IMPORT MODAL -->
+  <div id="gitImportModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm transition-opacity">
+    <div class="relative w-full max-w-lg bg-[#18181b] border-2 border-[#63B22F] rounded-xl shadow-[0_0_20px_rgba(99,178,47,0.3)] overflow-hidden">
+      <!-- Header -->
+      <div class="flex items-center justify-between p-4 border-b border-[#414141] bg-[#121214]">
+        <div class="flex items-center space-x-2">
+          <i data-lucide="globe" class="w-5 h-5 text-[#D9FF3D]"></i>
+          <h3 class="font-bold text-white tracking-wide">Import Git Repo (Zero-Download)</h3>
+        </div>
+        <button onclick="closeGitImportModal()" class="text-zinc-400 hover:text-[#FF8EAB] transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+      
+      <!-- Body -->
+      <div class="p-5 space-y-4">
+        <div>
+          <label class="block text-xs font-mono text-zinc-400 mb-1">Git Repository URL</label>
+          <input type="text" id="gitRepoUrl" placeholder="https://github.com/expressjs/express" class="w-full bg-[#121214] border border-[#414141] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#D9FF3D]" />
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-mono text-zinc-400 mb-1">Branch (Optional)</label>
+            <input type="text" id="gitRepoBranch" placeholder="main" class="w-full bg-[#121214] border border-[#414141] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#63B22F]" />
+          </div>
+          <div>
+            <label class="block text-xs font-mono text-zinc-400 mb-1">Access Token (Private)</label>
+            <input type="password" id="gitRepoToken" placeholder="ghp_..." class="w-full bg-[#121214] border border-[#414141] rounded px-3 py-2 text-sm text-white focus:outline-none focus:border-[#FF8EAB]" />
+          </div>
+        </div>
+        
+        <div>
+          <label class="block text-xs font-mono text-zinc-400 mb-2">1-Click Presets</label>
+          <div class="flex flex-wrap gap-2">
+            <button onclick="setGitPreset('https://github.com/expressjs/express')" class="text-xs px-2 py-1 bg-[#414141] border border-[#63B22F] text-white rounded hover:bg-[#63B22F] hover:text-black transition">expressjs/express</button>
+            <button onclick="setGitPreset('https://github.com/BurntSushi/ripgrep')" class="text-xs px-2 py-1 bg-[#414141] border border-[#63B22F] text-white rounded hover:bg-[#63B22F] hover:text-black transition">BurntSushi/ripgrep</button>
+            <button onclick="setGitPreset('https://github.com/mrdoob/three.js')" class="text-xs px-2 py-1 bg-[#414141] border border-[#63B22F] text-white rounded hover:bg-[#63B22F] hover:text-black transition">mrdoob/three.js</button>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Footer -->
+      <div class="p-4 border-t border-[#414141] bg-[#121214] flex justify-end space-x-3">
+        <button onclick="closeGitImportModal()" class="px-4 py-2 text-sm text-zinc-300 hover:text-white transition">Cancel</button>
+        <button onclick="executeGitImport()" class="px-4 py-2 text-sm bg-[#63B22F] hover:bg-[#D9FF3D] text-black font-bold rounded flex items-center space-x-2 transition shadow-[0_0_10px_rgba(99,178,47,0.4)]">
+          <i data-lucide="download-cloud" class="w-4 h-4"></i>
+          <span>Instant Import API</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+<script>
+  let isGitMode = false;
+  let currentGitUrl = "";
+  let currentGitBranch = "";
+  let currentGitToken = "";
+
+  function openGitImportModal() {
+    document.getElementById('gitImportModal').classList.remove('hidden');
+    // Ensure lucide icons are rendered in the modal if added dynamically
+    if(window.lucide) {
+      window.lucide.createIcons();
+    }
+  }
+
+  function closeGitImportModal() {
+    document.getElementById('gitImportModal').classList.add('hidden');
+  }
+
+  function setGitPreset(url) {
+    document.getElementById('gitRepoUrl').value = url;
+  }
+
+  async function executeGitImport() {
+    const url = document.getElementById('gitRepoUrl').value.trim();
+    const branch = document.getElementById('gitRepoBranch').value.trim();
+    const token = document.getElementById('gitRepoToken').value.trim();
+    
+    if (!url) {
+      alert("Please enter a Git Repository URL.");
+      return;
+    }
+    
+    closeGitImportModal();
+    const loadingStatus = document.getElementById('loadingStatus');
+    const dropzoneView = document.getElementById('dropzoneView');
+    
+    if(loadingStatus) {
+       loadingStatus.classList.remove('hidden');
+       loadingStatus.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Analyzing Git Tree via API...</span>`;
+    }
+    
+    isGitMode = true;
+    currentGitUrl = url;
+    currentGitBranch = branch;
+    currentGitToken = token;
+    
+    try {
+      // 1. Try Backend API first
+      let apiEndpoint = `/api/git/tree?url=${encodeURIComponent(url)}`;
+      if (branch) apiEndpoint += `&branch=${encodeURIComponent(branch)}`;
+      
+      const headers = {};
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      
+      let response = await fetch(apiEndpoint, { headers }).catch(() => null);
+      let data = null;
+      
+      if (response && response.ok) {
+         data = await response.json();
+      } else {
+         // 2. Client-side Fallback (Mock data structure based on URL parsing for GitHub)
+         console.warn("Backend API unavailable or failed. Using client-side GitHub API fallback.");
+         const match = url.match(/github\.com\/([^\/]+)\/([^\/]+)/);
+         if (match) {
+           const owner = match[1];
+           let repo = match[2];
+           if (repo.endsWith('.git')) repo = repo.slice(0, -4);
+           const githubApiUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch || 'HEAD'}?recursive=1`;
+           
+           const ghResponse = await fetch(githubApiUrl, { headers });
+           if (!ghResponse.ok) throw new Error("GitHub API failed.");
+           const ghData = await ghResponse.json();
+           
+           // Convert GitHub tree to our expected format
+           data = {
+             project_name: `${owner}/${repo}`,
+             summary: {
+               total_files: ghData.tree.length,
+               total_lines: 0,
+               code_lines: 0,
+               comment_lines: 0,
+               blank_lines: 0,
+               avg_complexity: 0,
+               languages: {}
+             },
+             files: []
+           };
+           
+           for(const item of ghData.tree) {
+             if(item.type === "blob") {
+               const parts = item.path.split('/');
+               const name = parts[parts.length - 1];
+               const ext = name.split('.').pop();
+               
+               // Try to determine language simply
+               let lang = "Unknown";
+               if(ext === "js" || ext === "jsx") lang = "JavaScript";
+               else if(ext === "ts" || ext === "tsx") lang = "TypeScript";
+               else if(ext === "py") lang = "Python";
+               else if(ext === "rs") lang = "Rust";
+               else if(ext === "go") lang = "Go";
+               else if(ext === "html") lang = "HTML";
+               else if(ext === "css") lang = "CSS";
+               else if(ext === "json") lang = "JSON";
+               else if(ext === "md") lang = "Markdown";
+               
+               data.summary.languages[lang] = (data.summary.languages[lang] || 0) + 100;
+               
+               data.files.push({
+                 path: item.path,
+                 name: name,
+                 language: lang,
+                 size_bytes: item.size || 1024,
+                 lines: 100,
+                 functions: [],
+                 classes: [],
+                 imports: [],
+                 git_raw_url: `https://raw.githubusercontent.com/${owner}/${repo}/${branch || 'HEAD'}/${item.path}`
+               });
+             }
+           }
+         } else {
+           throw new Error("Only GitHub URLs are supported in client-side fallback.");
+         }
+      }
+      
+      // Load into app
+      window.loadAnalysisData(data);
+      if (dropzoneView) {
+        dropzoneView.classList.add('hidden');
+      }
+      
+    } catch (e) {
+      alert("Failed to import Git Repo: " + e.message);
+      console.error(e);
+    } finally {
+      if(loadingStatus) loadingStatus.classList.add('hidden');
+    }
+  }
+
+  // Intercept the file loading to fetch raw content lazily
+  document.addEventListener('DOMContentLoaded', () => {
+    // Wait for everything to initialize, then hook window.showFileContent
+    setTimeout(() => {
+      const originalShowFileContent = window.showFileContent;
+      if(originalShowFileContent) {
+        window.showFileContent = async function(filePath) {
+          if(isGitMode && window.globalAnalysisData && window.globalAnalysisData.files) {
+            // Find the file node
+            const fileNode = window.globalAnalysisData.files.find(f => f.path === filePath);
+            if(fileNode && fileNode.git_raw_url) {
+               try {
+                 // Try fetching content if not cached
+                 if (!fileNode.content) {
+                   const codeContentEl = document.getElementById('codeContent');
+                   if (codeContentEl) codeContentEl.textContent = "Loading source code from remote...";
+                   
+                   const headers = {};
+                   if (currentGitToken) headers['Authorization'] = `token ${currentGitToken}`;
+                   
+                   const res = await fetch(fileNode.git_raw_url, { headers });
+                   if(res.ok) {
+                     fileNode.content = await res.text();
+                   } else {
+                     if (codeContentEl) codeContentEl.textContent = "Error loading source code: " + res.status;
+                     return;
+                   }
+                 }
+               } catch(e) {
+                 const codeContentEl = document.getElementById('codeContent');
+                 if (codeContentEl) codeContentEl.textContent = "Error loading source code.";
+                 return;
+               }
+            }
+          }
+          originalShowFileContent(filePath);
+        };
+      }
+    }, 1000);
+  });
+</script>
+
 </body>
 </html>
