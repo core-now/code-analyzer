@@ -1,0 +1,5 @@
+# Codebase Analyzer Dependencies
+# The core analyzer is implemented using Python standard libraries (http.server, urllib, json, hashlib, zipfile, etc.).
+# Optional utilities for enhanced tooling, testing, and production servers:
+urllib3>=2.0.0
+requests>=2.31.0

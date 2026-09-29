@@ -1,0 +1,17 @@
+.git
+.github
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.venv
+venv
+env
+.DS_Store
+Thumbs.db
+*.log
+*.tmp
+.codebase_cache.json
+.codebase_results.json
+codebase_analysis_cache.json
+codebase_analysis_results.json

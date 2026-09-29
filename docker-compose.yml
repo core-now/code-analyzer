@@ -1,0 +1,81 @@
+services:
+  # ============================================================================
+  # 1. Code-Analyzer Application Server & 3D Knowledge Base UI
+  # ============================================================================
+  code-analyzer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: code-analyzer-app
+    restart: unless-stopped
+    ports:
+      - "8084:8084"
+    environment:
+      - PORT=8084
+      - LLM_URL=http://ollama:11434/v1/chat/completions
+      - LLM_MODEL=qwen2.5-coder:7b
+      - CACHE_FILE=/workspace/.codebase_cache.json
+      - RESULTS_FILE=/workspace/.codebase_results.json
+    volumes:
+      # Mount target codebase directory to /workspace
+      - .:/workspace
+    depends_on:
+      ollama:
+        condition: service_started
+    networks:
+      - code-analyzer-net
+
+  # ============================================================================
+  # 2. Ollama Local LLM Engine (qwen2.5-coder:7b / deepseek-coder)
+  # ============================================================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: code-analyzer-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    networks:
+      - code-analyzer-net
+    # --------------------------------------------------------------------------
+    # Optional GPU Support: Uncomment below if NVIDIA Container Toolkit is installed
+    # --------------------------------------------------------------------------
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # ============================================================================
+  # 3. Model Preloader / Initializer (Automatically pulls qwen2.5-coder:7b)
+  # ============================================================================
+  ollama-model-init:
+    image: curlimages/curl:latest
+    container_name: code-analyzer-model-init
+    restart: "no"
+    depends_on:
+      - ollama
+    networks:
+      - code-analyzer-net
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Waiting for Ollama to be ready..."
+        while ! curl -s -f http://ollama:11434/api/tags > /dev/null 2>&1; do
+          sleep 2
+        done
+        echo "Ollama is ready! Pulling default model: qwen2.5-coder:7b..."
+        curl -s -X POST http://ollama:11434/api/pull -d '{"name": "qwen2.5-coder:7b"}'
+        echo "Model initialization complete!"
+
+volumes:
+  ollama_data:
+    name: code_analyzer_ollama_data
+
+networks:
+  code-analyzer-net:
+    name: code_analyzer_network
+    driver: bridge
