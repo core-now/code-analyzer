@@ -682,17 +682,144 @@ class DatabaseManager:
             except Exception as e:
                 logger.error(f"Error updating last login in SQLite: {e}")
 
+    def _sync_user_to_mssql_if_needed(self, user_id: str) -> bool:
+        """Ensures the given user exists in MSSQL table, syncing from SQLite if needed."""
+        if self.db_type != "mssql" or not user_id:
+            return True
+        try:
+            conn = self._get_mssql_conn()
+            cursor = conn.cursor()
+            q = "SELECT id FROM users WHERE id = %s" if self.driver == "pymssql" else "SELECT id FROM users WHERE id = ?"
+            cursor.execute(q, (user_id,))
+            row = cursor.fetchone()
+            if row:
+                conn.close()
+                return True
+
+            # User not in MSSQL, lookup in SQLite
+            user_data = None
+            try:
+                with self._get_sqlite_conn() as s_conn:
+                    s_cursor = s_conn.cursor()
+                    s_cursor.execute("SELECT id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url FROM users WHERE id = ?", (user_id,))
+                    s_row = s_cursor.fetchone()
+                    if s_row:
+                        user_data = dict(s_row)
+            except Exception as e:
+                logger.warning(f"Failed to lookup user in SQLite for MSSQL sync: {e}")
+
+            if user_data:
+                ins_q = """
+                    INSERT INTO users (id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """ if self.driver == "pymssql" else """
+                    INSERT INTO users (id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """
+                cursor.execute(ins_q, (
+                    user_data["id"],
+                    user_data["username"],
+                    user_data["email"],
+                    user_data.get("password_hash"),
+                    user_data.get("role", "developer"),
+                    1 if user_data.get("is_active", 1) else 0,
+                    user_data.get("created_at") or datetime.datetime.utcnow().isoformat(),
+                    user_data.get("last_login"),
+                    user_data.get("github_id"),
+                    user_data.get("avatar_url")
+                ))
+                conn.close()
+                logger.info(f"Synchronized user '{user_data['username']}' (ID: {user_id}) from SQLite to MSSQL.")
+                return True
+            conn.close()
+            return False
+        except Exception as e:
+            logger.warning(f"Error syncing user to MSSQL: {e}")
+            return False
+
+    def _sync_user_to_sqlite_if_needed(self, user_id: str) -> bool:
+        """Ensures the given user exists in SQLite table, syncing from MSSQL if needed."""
+        if not user_id:
+            return True
+        try:
+            with self._get_sqlite_conn() as s_conn:
+                s_cursor = s_conn.cursor()
+                s_cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+                if s_cursor.fetchone():
+                    return True
+
+            # User not in SQLite, lookup in MSSQL
+            user_data = None
+            if self.mssql_server:
+                try:
+                    conn = self._get_mssql_conn()
+                    cursor = conn.cursor()
+                    q = "SELECT id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url FROM users WHERE id = %s" if self.driver == "pymssql" else "SELECT id, username, email, role, is_active, created_at, last_login, github_id, avatar_url FROM users WHERE id = ?"
+                    cursor.execute(q, (user_id,))
+                    row = cursor.fetchone()
+                    conn.close()
+                    if row:
+                        if isinstance(row, dict):
+                            user_data = row
+                        else:
+                            user_data = {
+                                "id": str(row[0]),
+                                "username": str(row[1]),
+                                "email": str(row[2]),
+                                "password_hash": str(row[3]) if len(row) > 3 and row[3] else None,
+                                "role": str(row[4]) if len(row) > 4 and row[4] else "developer",
+                                "is_active": int(row[5]) if len(row) > 5 and row[5] else 1,
+                                "created_at": str(row[6]) if len(row) > 6 and row[6] else datetime.datetime.utcnow().isoformat(),
+                                "last_login": str(row[7]) if len(row) > 7 and row[7] else None,
+                                "github_id": str(row[8]) if len(row) > 8 and row[8] else None,
+                                "avatar_url": str(row[9]) if len(row) > 9 and row[9] else None
+                            }
+                except Exception as e:
+                    logger.warning(f"Failed to lookup user in MSSQL for SQLite sync: {e}")
+
+            if user_data:
+                with self._get_sqlite_conn() as s_conn:
+                    s_conn.execute("""
+                        INSERT OR REPLACE INTO users (id, username, email, password_hash, role, is_active, created_at, last_login, github_id, avatar_url)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        user_data["id"],
+                        user_data["username"],
+                        user_data["email"],
+                        user_data.get("password_hash"),
+                        user_data.get("role", "developer"),
+                        1 if user_data.get("is_active", 1) else 0,
+                        user_data.get("created_at") or datetime.datetime.utcnow().isoformat(),
+                        user_data.get("last_login"),
+                        user_data.get("github_id"),
+                        user_data.get("avatar_url")
+                    ))
+                    s_conn.commit()
+                logger.info(f"Synchronized user '{user_data['username']}' (ID: {user_id}) from MSSQL to SQLite.")
+                return True
+            return False
+        except Exception as e:
+            logger.warning(f"Error syncing user to SQLite: {e}")
+            return False
+
     # --- Project Management ---
 
     def create_project(self, user_id: str, name: str, description: str = "", is_public: bool = False, metrics: Optional[Dict[str, Any]] = None, file_tree: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
         project_id = str(uuid.uuid4())
         snapshot_id = str(uuid.uuid4())
         now = datetime.datetime.utcnow().isoformat()
-        metrics_json = json.dumps(metrics or {})
-        file_tree_json = json.dumps(file_tree or {})
+        try:
+            metrics_json = json.dumps(metrics or {}, default=str)
+        except Exception:
+            metrics_json = "{}"
+        try:
+            file_tree_json = json.dumps(file_tree or {}, default=str)
+        except Exception:
+            file_tree_json = "{}"
 
         if self.db_type == "mssql":
             try:
+                self._sync_user_to_mssql_if_needed(user_id)
                 conn = self._get_mssql_conn()
                 cursor = conn.cursor()
                 p_query = "INSERT INTO projects (id, user_id, name, description, is_public, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, %s)" if self.driver == "pymssql" else "INSERT INTO projects (id, user_id, name, description, is_public, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -701,6 +828,7 @@ class DatabaseManager:
                 s_query = "INSERT INTO project_snapshots (id, project_id, version, metrics_json, file_tree_json, created_at) VALUES (%s, %s, %s, %s, %s, %s)" if self.driver == "pymssql" else "INSERT INTO project_snapshots (id, project_id, version, metrics_json, file_tree_json, created_at) VALUES (?, ?, ?, ?, ?, ?)"
                 cursor.execute(s_query, (snapshot_id, project_id, "1.0.0", metrics_json, file_tree_json, now))
                 conn.close()
+                self.last_error = ""
                 return {
                     "id": project_id,
                     "user_id": user_id,
@@ -712,10 +840,38 @@ class DatabaseManager:
                     "latest_snapshot_id": snapshot_id
                 }
             except Exception as e:
-                logger.error(f"Failed to create project in MSSQL: {e}")
-                return None
+                self.last_error = f"Failed to create project in MSSQL: {e}"
+                logger.error(f"Failed to create project in MSSQL: {e}. Attempting local SQLite fallback...")
+                try:
+                    self._sync_user_to_sqlite_if_needed(user_id)
+                    with self._get_sqlite_conn() as conn:
+                        conn.execute(
+                            "INSERT INTO projects (id, user_id, name, description, is_public, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (project_id, user_id, name, description, 1 if is_public else 0, now, now)
+                        )
+                        conn.execute(
+                            "INSERT INTO project_snapshots (id, project_id, version, metrics_json, file_tree_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                            (snapshot_id, project_id, "1.0.0", metrics_json, file_tree_json, now)
+                        )
+                        conn.commit()
+                    self.last_error = ""
+                    return {
+                        "id": project_id,
+                        "user_id": user_id,
+                        "name": name,
+                        "description": description,
+                        "is_public": is_public,
+                        "created_at": now,
+                        "updated_at": now,
+                        "latest_snapshot_id": snapshot_id
+                    }
+                except Exception as sqle:
+                    self.last_error = f"Failed to create project in SQLite fallback: {sqle} (MSSQL error: {e})"
+                    logger.error(self.last_error)
+                    return None
         else:
             try:
+                self._sync_user_to_sqlite_if_needed(user_id)
                 with self._get_sqlite_conn() as conn:
                     conn.execute(
                         "INSERT INTO projects (id, user_id, name, description, is_public, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
@@ -726,6 +882,7 @@ class DatabaseManager:
                         (snapshot_id, project_id, "1.0.0", metrics_json, file_tree_json, now)
                     )
                     conn.commit()
+                self.last_error = ""
                 return {
                     "id": project_id,
                     "user_id": user_id,
@@ -737,7 +894,8 @@ class DatabaseManager:
                     "latest_snapshot_id": snapshot_id
                 }
             except Exception as e:
-                logger.error(f"Failed to create project in SQLite: {e}")
+                self.last_error = f"Failed to create project in SQLite: {e}"
+                logger.error(self.last_error)
                 return None
 
     def list_projects(self, user_id: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -789,32 +947,35 @@ class DatabaseManager:
                             "updated_at": str(row[7]),
                             "owner": str(row[8] or "Unknown")
                         })
+                return projects
             except Exception as e:
-                logger.error(f"Error listing projects from MSSQL: {e}")
-        else:
-            try:
-                with self._get_sqlite_conn() as conn:
-                    cursor = conn.cursor()
-                    if user_id:
-                        cursor.execute("""
-                            SELECT p.id, p.user_id, p.name, p.description, p.is_public, p.share_token, p.created_at, p.updated_at, u.username as owner
-                            FROM projects p
-                            LEFT JOIN users u ON p.user_id = u.id
-                            WHERE p.user_id = ? OR p.is_public = 1
-                            ORDER BY p.updated_at DESC
-                        """, (user_id,))
-                    else:
-                        cursor.execute("""
-                            SELECT p.id, p.user_id, p.name, p.description, p.is_public, p.share_token, p.created_at, p.updated_at, u.username as owner
-                            FROM projects p
-                            LEFT JOIN users u ON p.user_id = u.id
-                            WHERE p.is_public = 1
-                            ORDER BY p.updated_at DESC
-                        """)
-                    for row in cursor.fetchall():
-                        projects.append(dict(row))
-            except Exception as e:
-                logger.error(f"Error listing projects from SQLite: {e}")
+                logger.warning(f"Error listing projects from MSSQL: {e}. Querying SQLite fallback...")
+
+        # SQLite query (primary or fallback)
+        try:
+            with self._get_sqlite_conn() as conn:
+                cursor = conn.cursor()
+                if user_id:
+                    cursor.execute("""
+                        SELECT p.id, p.user_id, p.name, p.description, p.is_public, p.share_token, p.created_at, p.updated_at, u.username as owner
+                        FROM projects p
+                        LEFT JOIN users u ON p.user_id = u.id
+                        WHERE p.user_id = ? OR p.is_public = 1
+                        ORDER BY p.updated_at DESC
+                    """, (user_id,))
+                else:
+                    cursor.execute("""
+                        SELECT p.id, p.user_id, p.name, p.description, p.is_public, p.share_token, p.created_at, p.updated_at, u.username as owner
+                        FROM projects p
+                        LEFT JOIN users u ON p.user_id = u.id
+                        WHERE p.is_public = 1
+                        ORDER BY p.updated_at DESC
+                    """)
+                for row in cursor.fetchall():
+                    projects.append(dict(row))
+        except Exception as e:
+            self.last_error = f"Error listing projects from SQLite: {e}"
+            logger.error(self.last_error)
         return projects
 
     def get_project_by_id(self, project_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
@@ -828,7 +989,7 @@ class DatabaseManager:
                 row = cursor.fetchone()
                 if row:
                     if isinstance(row, dict):
-                        project = row
+                        project = dict(row)
                     else:
                         project = {
                             "id": str(row[0]),
@@ -846,25 +1007,47 @@ class DatabaseManager:
                     s_row = cursor.fetchone()
                     if s_row:
                         if isinstance(s_row, dict):
+                            metrics_data = {}
+                            try:
+                                metrics_data = json.loads(s_row["metrics_json"]) if s_row["metrics_json"] else {}
+                            except Exception:
+                                pass
+                            file_tree_data = {}
+                            try:
+                                file_tree_data = json.loads(s_row["file_tree_json"]) if s_row["file_tree_json"] else {}
+                            except Exception:
+                                pass
                             project["snapshot"] = {
                                 "id": s_row["id"],
                                 "version": s_row["version"],
-                                "metrics": json.loads(s_row["metrics_json"]) if s_row["metrics_json"] else {},
-                                "file_tree": json.loads(s_row["file_tree_json"]) if s_row["file_tree_json"] else {},
+                                "metrics": metrics_data,
+                                "file_tree": file_tree_data,
                                 "created_at": str(s_row["created_at"])
                             }
                         else:
+                            metrics_data = {}
+                            try:
+                                metrics_data = json.loads(s_row[2]) if s_row[2] else {}
+                            except Exception:
+                                pass
+                            file_tree_data = {}
+                            try:
+                                file_tree_data = json.loads(s_row[3]) if s_row[3] else {}
+                            except Exception:
+                                pass
                             project["snapshot"] = {
                                 "id": str(s_row[0]),
                                 "version": str(s_row[1]),
-                                "metrics": json.loads(s_row[2]) if s_row[2] else {},
-                                "file_tree": json.loads(s_row[3]) if s_row[3] else {},
+                                "metrics": metrics_data,
+                                "file_tree": file_tree_data,
                                 "created_at": str(s_row[4])
                             }
                 conn.close()
             except Exception as e:
-                logger.error(f"Error fetching project from MSSQL: {e}")
-        else:
+                logger.warning(f"Error fetching project from MSSQL: {e}. Trying SQLite fallback...")
+
+        # SQLite fallback if not found or MSSQL failed
+        if not project:
             try:
                 with self._get_sqlite_conn() as conn:
                     cursor = conn.cursor()
@@ -875,11 +1058,21 @@ class DatabaseManager:
                         cursor.execute("SELECT id, version, metrics_json, file_tree_json, created_at FROM project_snapshots WHERE project_id = ? ORDER BY created_at DESC LIMIT 1", (project_id,))
                         s_row = cursor.fetchone()
                         if s_row:
+                            metrics_data = {}
+                            try:
+                                metrics_data = json.loads(s_row["metrics_json"]) if s_row["metrics_json"] else {}
+                            except Exception:
+                                pass
+                            file_tree_data = {}
+                            try:
+                                file_tree_data = json.loads(s_row["file_tree_json"]) if s_row["file_tree_json"] else {}
+                            except Exception:
+                                pass
                             project["snapshot"] = {
                                 "id": s_row["id"],
                                 "version": s_row["version"],
-                                "metrics": json.loads(s_row["metrics_json"]) if s_row["metrics_json"] else {},
-                                "file_tree": json.loads(s_row["file_tree_json"]) if s_row["file_tree_json"] else {},
+                                "metrics": metrics_data,
+                                "file_tree": file_tree_data,
                                 "created_at": s_row["created_at"]
                             }
             except Exception as e:
@@ -887,14 +1080,15 @@ class DatabaseManager:
 
         # Check access permission
         if project:
-            if project["is_public"] or (user_id and project["user_id"] == user_id):
+            if project.get("is_public") or (user_id and str(project.get("user_id")) == str(user_id)):
                 return project
         return None
 
     def create_or_get_share_token(self, project_id: str, user_id: str) -> Optional[str]:
         """Generates or returns existing share token for a user's project."""
         project = self.get_project_by_id(project_id, user_id=user_id)
-        if not project or project["user_id"] != user_id:
+        if not project or str(project.get("user_id")) != str(user_id):
+            self.last_error = "Project not found or not owned by user."
             return None
 
         if project.get("share_token"):
@@ -908,58 +1102,67 @@ class DatabaseManager:
                 query = "UPDATE projects SET share_token = %s, is_public = 1 WHERE id = %s" if self.driver == "pymssql" else "UPDATE projects SET share_token = ?, is_public = 1 WHERE id = ?"
                 cursor.execute(query, (token, project_id))
                 conn.close()
+                self.last_error = ""
                 return token
             except Exception as e:
-                logger.error(f"Error setting share token in MSSQL: {e}")
-                return None
-        else:
-            try:
-                with self._get_sqlite_conn() as conn:
-                    conn.execute("UPDATE projects SET share_token = ?, is_public = 1 WHERE id = ?", (token, project_id))
-                    conn.commit()
-                return token
-            except Exception as e:
-                logger.error(f"Error setting share token in SQLite: {e}")
-                return None
+                logger.warning(f"Error setting share token in MSSQL: {e}. Falling back to SQLite...")
+
+        try:
+            with self._get_sqlite_conn() as conn:
+                conn.execute("UPDATE projects SET share_token = ?, is_public = 1 WHERE id = ?", (token, project_id))
+                conn.commit()
+            self.last_error = ""
+            return token
+        except Exception as e:
+            self.last_error = f"Error setting share token in SQLite: {e}"
+            logger.error(self.last_error)
+            return None
 
     def get_project_by_share_token(self, token: str) -> Optional[Dict[str, Any]]:
         """Retrieves project and snapshot data by public share token."""
-        project = None
+        if not token:
+            return None
         if self.db_type == "mssql":
             try:
                 conn = self._get_mssql_conn()
                 cursor = conn.cursor()
-                query = "SELECT id, user_id, name, description, is_public, share_token, created_at, updated_at FROM projects WHERE share_token = %s" if self.driver == "pymssql" else "SELECT id, user_id, name, description, is_public, share_token, created_at, updated_at FROM projects WHERE share_token = ?"
+                query = "SELECT id FROM projects WHERE share_token = %s" if self.driver == "pymssql" else "SELECT id FROM projects WHERE share_token = ?"
                 cursor.execute(query, (token,))
                 row = cursor.fetchone()
+                conn.close()
                 if row:
                     p_id = str(row["id"]) if isinstance(row, dict) else str(row[0])
-                    conn.close()
                     return self.get_project_by_id(p_id)
-                conn.close()
             except Exception as e:
-                logger.error(f"Error fetching share project in MSSQL: {e}")
-        else:
-            try:
-                with self._get_sqlite_conn() as conn:
-                    cursor = conn.cursor()
-                    cursor.execute("SELECT id FROM projects WHERE share_token = ?", (token,))
-                    row = cursor.fetchone()
-                    if row:
-                        return self.get_project_by_id(row["id"])
-            except Exception as e:
-                logger.error(f"Error fetching share project in SQLite: {e}")
+                logger.warning(f"Error fetching share project in MSSQL: {e}. Trying SQLite...")
+
+        try:
+            with self._get_sqlite_conn() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM projects WHERE share_token = ?", (token,))
+                row = cursor.fetchone()
+                if row:
+                    return self.get_project_by_id(row["id"])
+        except Exception as e:
+            logger.error(f"Error fetching share project in SQLite: {e}")
         return None
 
     def save_snapshot(self, project_id: str, user_id: str, metrics: Dict[str, Any], file_tree: Optional[Dict[str, Any]] = None, version: str = "1.0.0") -> Optional[str]:
         project = self.get_project_by_id(project_id, user_id=user_id)
-        if not project or project["user_id"] != user_id:
+        if not project or str(project.get("user_id")) != str(user_id):
+            self.last_error = "Project not found or not owned by user."
             return None
 
         snapshot_id = str(uuid.uuid4())
         now = datetime.datetime.utcnow().isoformat()
-        metrics_json = json.dumps(metrics)
-        file_tree_json = json.dumps(file_tree or {})
+        try:
+            metrics_json = json.dumps(metrics or {}, default=str)
+        except Exception:
+            metrics_json = "{}"
+        try:
+            file_tree_json = json.dumps(file_tree or {}, default=str)
+        except Exception:
+            file_tree_json = "{}"
 
         if self.db_type == "mssql":
             try:
@@ -970,20 +1173,22 @@ class DatabaseManager:
                 u_query = "UPDATE projects SET updated_at = %s WHERE id = %s" if self.driver == "pymssql" else "UPDATE projects SET updated_at = ? WHERE id = ?"
                 cursor.execute(u_query, (now, project_id))
                 conn.close()
+                self.last_error = ""
                 return snapshot_id
             except Exception as e:
-                logger.error(f"Error saving snapshot in MSSQL: {e}")
-                return None
-        else:
-            try:
-                with self._get_sqlite_conn() as conn:
-                    conn.execute(
-                        "INSERT INTO project_snapshots (id, project_id, version, metrics_json, file_tree_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-                        (snapshot_id, project_id, version, metrics_json, file_tree_json, now)
-                    )
-                    conn.execute("UPDATE projects SET updated_at = ? WHERE id = ?", (now, project_id))
-                    conn.commit()
-                return snapshot_id
-            except Exception as e:
-                logger.error(f"Error saving snapshot in SQLite: {e}")
-                return None
+                logger.warning(f"Error saving snapshot in MSSQL: {e}. Falling back to SQLite...")
+
+        try:
+            with self._get_sqlite_conn() as conn:
+                conn.execute(
+                    "INSERT INTO project_snapshots (id, project_id, version, metrics_json, file_tree_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (snapshot_id, project_id, version, metrics_json, file_tree_json, now)
+                )
+                conn.execute("UPDATE projects SET updated_at = ? WHERE id = ?", (now, project_id))
+                conn.commit()
+            self.last_error = ""
+            return snapshot_id
+        except Exception as e:
+            self.last_error = f"Error saving snapshot in SQLite: {e}"
+            logger.error(self.last_error)
+            return None

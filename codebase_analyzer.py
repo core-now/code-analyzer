@@ -1752,18 +1752,62 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                     file_tree=file_tree
                 )
                 if not project:
+                    db_err = getattr(KnowledgeBaseServer.db, "last_error", "") or "Failed to create project record in database."
+                    logger.error(f"Failed to create project for user '{user.get('username')}' (ID: {user.get('id')}): {db_err}")
                     self._set_headers(500)
-                    self.wfile.write(json.dumps({"error": "Failed to create project record."}).encode("utf-8"))
+                    self.wfile.write(json.dumps({"error": f"Failed to create project record: {db_err}"}).encode("utf-8"))
                     return
 
                 self._set_headers(201)
                 self.wfile.write(json.dumps(project).encode("utf-8"))
             except Exception as e:
+                logger.error(f"Error creating project: {e}")
                 self._set_headers(500)
-                self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+                self.wfile.write(json.dumps({"error": f"Failed to create project record: {str(e)}"}).encode("utf-8"))
             return
 
-        # 5. Project: Share Token generation /api/projects/{id}/share
+        # 5. Project Snapshot: /api/projects/{id}/snapshots
+        if parsed_path.startswith("/api/projects/") and (parsed_path.endswith("/snapshots") or parsed_path.endswith("/snapshot")):
+            try:
+                user = self._get_authenticated_user()
+                if not user:
+                    self._set_headers(401)
+                    self.wfile.write(json.dumps({"error": "Authentication required."}).encode("utf-8"))
+                    return
+
+                parts = parsed_path.strip("/").split("/")
+                project_id = parts[2]
+                body = json.loads(post_data.decode("utf-8")) if post_data else {}
+                metrics = body.get("metrics") or KnowledgeBaseServer.cached_analysis or {}
+                file_tree = body.get("file_tree") or metrics.get("file_tree", {})
+                version = body.get("version", "1.0.0")
+
+                snapshot_id = KnowledgeBaseServer.db.save_snapshot(
+                    project_id=project_id,
+                    user_id=user["id"],
+                    metrics=metrics,
+                    file_tree=file_tree,
+                    version=version
+                )
+                if not snapshot_id:
+                    db_err = getattr(KnowledgeBaseServer.db, "last_error", "") or "Project not found or not owned by user."
+                    self._set_headers(500)
+                    self.wfile.write(json.dumps({"error": f"Failed to save snapshot: {db_err}"}).encode("utf-8"))
+                    return
+
+                self._set_headers(201)
+                self.wfile.write(json.dumps({
+                    "success": True,
+                    "project_id": project_id,
+                    "snapshot_id": snapshot_id
+                }).encode("utf-8"))
+            except Exception as e:
+                logger.error(f"Error saving snapshot: {e}")
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"error": f"Failed to save snapshot: {str(e)}"}).encode("utf-8"))
+            return
+
+        # 6. Project: Share Token generation /api/projects/{id}/share
         if parsed_path.startswith("/api/projects/") and parsed_path.endswith("/share"):
             try:
                 user = self._get_authenticated_user()
@@ -1776,8 +1820,9 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                 project_id = parts[2]
                 share_token = KnowledgeBaseServer.db.create_or_get_share_token(project_id, user["id"])
                 if not share_token:
+                    db_err = getattr(KnowledgeBaseServer.db, "last_error", "") or "Project not found or not owned by user."
                     self._set_headers(403)
-                    self.wfile.write(json.dumps({"error": "Project not found or not owned by user."}).encode("utf-8"))
+                    self.wfile.write(json.dumps({"error": f"Failed to generate share link: {db_err}"}).encode("utf-8"))
                     return
 
                 self._set_headers(200)
@@ -1787,6 +1832,7 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                     "share_url": f"/app?share={share_token}"
                 }).encode("utf-8"))
             except Exception as e:
+                logger.error(f"Error generating share link: {e}")
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
             return
