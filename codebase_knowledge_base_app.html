@@ -1626,6 +1626,18 @@
               <span>Labels <span id="cityLabelsBadge" class="text-[10px] ml-0.5">ON</span></span>
             </button>
 
+            <!-- Street View Modus Toggle (WASD Exploration) -->
+            <button id="btnCityStreetViewToggle" onclick="window.codeCityApp && window.codeCityApp.toggleStreetView()" title="🚶 Street View Modus (Erkundung auf Straßenniveau mit WASD)" class="text-xs font-mono px-2.5 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500 hover:text-black font-semibold flex items-center space-x-1.5 transition">
+              <i data-lucide="footprints" class="w-3.5 h-3.5" id="cityStreetViewIcon"></i>
+              <span>Street View <span id="cityStreetViewBadge" class="text-[10px] ml-0.5 font-bold text-zinc-400">OFF</span></span>
+            </button>
+
+            <!-- Export Standalone HTML & Share -->
+            <button id="btnCityShareToggle" onclick="window.codeCityApp && window.codeCityApp.exportStandaloneCityHtml()" title="🌐 Standalone 3D City HTML exportieren & teilen" class="text-xs font-mono px-2.5 py-1.5 rounded-lg bg-brand-orange/20 text-brand-orange border border-brand-orange/60 hover:bg-brand-orange hover:text-black font-semibold flex items-center space-x-1.5 transition">
+              <i data-lucide="share-2" class="w-3.5 h-3.5"></i>
+              <span class="hidden md:inline">Share HTML</span>
+            </button>
+
             <button id="btnCityThemeToggle" onclick="window.codeCityApp && window.codeCityApp.toggleTheme()" title="Cyberpunk Night / Dark Studio Theme wechseln" class="text-xs font-mono px-2.5 py-1.5 rounded-lg bg-brand-anthracite hover:bg-brand-card text-zinc-300 hover:text-white border border-brand-border flex items-center space-x-1.5 transition">
               <i data-lucide="moon" id="cityThemeIcon" class="w-3.5 h-3.5 text-amber-400"></i>
               <span id="cityThemeText" class="hidden lg:inline">Cyberpunk</span>
@@ -1753,7 +1765,11 @@
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#38BDF8]"></span> <span class="text-zinc-300">TypeScript</span></span>
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#F59E0B]"></span> <span class="text-zinc-300">JavaScript</span></span>
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#10B981]"></span> <span class="text-zinc-300">Python</span></span>
-          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#EC4899]"></span> <span class="text-zinc-300">CSS/HTML</span></span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#EC4899]"></span> <span class="text-zinc-300">CSS</span></span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#E34F26]"></span> <span class="text-zinc-300">HTML</span></span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#CBCB41]"></span> <span class="text-zinc-300">JSON/Config</span></span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#94A3B8]"></span> <span class="text-zinc-300">Markdown</span></span>
+          <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#89E051]"></span> <span class="text-zinc-300">Shell</span></span>
           <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-sm bg-[#63B22F]"></span> <span class="text-[#63B22F]">Low-Poly Tree</span></span>
           <span class="flex items-center gap-1.5"><span class="w-3 h-0.5 bg-[#D9FF3D]"></span> <span class="text-[#D9FF3D]">Tron Street</span></span>
           <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-[#FF8EAB] animate-ping"></span> <span class="text-[#FF8EAB]">Risk Beacon</span></span>
@@ -7646,6 +7662,12 @@ class CodeCityMetropolis {
         this.availableDistricts = [];
         this.collapsedDistricts = new Set();
 
+        // Navigation & WASD / Street View State
+        this.keysDown = {};
+        this.isMouseDown = false;
+        this.isStreetView = false;
+        this.overviewCamState = null;
+
         // Toggle Settings
         this.trafficEnabled = true;
         this.flowMode = 'data_flow';
@@ -7656,31 +7678,36 @@ class CodeCityMetropolis {
                             (typeof localStorage !== 'undefined' && (localStorage.getItem('codebase_theme') === 'light' || localStorage.getItem('codebase_theme_mode') === 'light'));
         this.theme = isLightInit ? 'light' : 'cyberpunk';
 
-        // Theme Style Configurations
+        // Theme Style Configurations (High-Visibility Atmospheric & Sun Lighting)
         this.themeStyles = {
           cyberpunk: {
-            bgDark: 0x04050d,
-            fogColor: 0x04050d,
-            fogDensity: 0.0016,
-            ambientColor: 0x080f24,
-            ambientIntensity: 1.35,
-            sunColor: 0x38bdf8,
-            sunIntensity: 1.45,
+            bgDark: 0x070913,
+            fogColor: 0x070913,
+            fogDensity: 0.00035, // Clear long-range metropolis visibility
+            ambientColor: 0x1e293b,
+            ambientIntensity: 2.2,
+            hemiSkyColor: 0x38bdf8,
+            hemiGroundColor: 0x0f172a,
+            hemiIntensity: 1.4,
+            sunColor: 0xffffff,
+            sunIntensity: 2.5,
+            secondarySunColor: 0x38bdf8,
+            secondarySunIntensity: 1.2,
             rimCyanColor: 0x00f0ff,
-            rimCyanIntensity: 1.9,
+            rimCyanIntensity: 2.2,
             rimMagentaColor: 0xff0077,
-            rimMagentaIntensity: 1.4,
+            rimMagentaIntensity: 1.8,
             rimOrangeColor: 0xff8000,
-            rimOrangeIntensity: 1.5,
-            plateColor: 0x0b1120,
+            rimOrangeIntensity: 1.8,
+            plateColor: 0x0f172a,
             plateBorderColor: 0x38bdf8,
-            plotColor: 0x070b14,
+            plotColor: 0x0b1120,
             plotBorderColor: 0x63B22F,
-            walkwayColor: 0x111c33,
+            walkwayColor: 0x1e293b,
             gridNeon: 0x38bdf8,
-            gridDark: 0x091428,
+            gridDark: 0x0f172a,
             gridFloorVisible: false,
-            buildingEmissiveIntensity: 0.22,
+            buildingEmissiveIntensity: 0.32,
             highwayColor: 0x38bdf8,
             highwayOpacity: 0.85,
             packetColor: 0xD9FF3D,
@@ -7693,28 +7720,33 @@ class CodeCityMetropolis {
             boulevardGuardrail: 0x00f0ff
           },
           matrix: {
-            bgDark: 0x020a04,
-            fogColor: 0x020a04,
-            fogDensity: 0.0018,
-            ambientColor: 0x021a08,
-            ambientIntensity: 1.4,
+            bgDark: 0x030d06,
+            fogColor: 0x030d06,
+            fogDensity: 0.00035,
+            ambientColor: 0x062e12,
+            ambientIntensity: 2.2,
+            hemiSkyColor: 0x22c55e,
+            hemiGroundColor: 0x031807,
+            hemiIntensity: 1.4,
             sunColor: 0x63B22F,
-            sunIntensity: 1.5,
+            sunIntensity: 2.5,
+            secondarySunColor: 0x22c55e,
+            secondarySunIntensity: 1.2,
             rimCyanColor: 0x22c55e,
-            rimCyanIntensity: 1.8,
+            rimCyanIntensity: 2.2,
             rimMagentaColor: 0x15803d,
-            rimMagentaIntensity: 1.2,
+            rimMagentaIntensity: 1.5,
             rimOrangeColor: 0xD9FF3D,
-            rimOrangeIntensity: 1.4,
-            plateColor: 0x051408,
+            rimOrangeIntensity: 1.8,
+            plateColor: 0x071e0c,
             plateBorderColor: 0x63B22F,
-            plotColor: 0x020a04,
+            plotColor: 0x031206,
             plotBorderColor: 0x16a34a,
-            walkwayColor: 0x06240d,
+            walkwayColor: 0x0b2c14,
             gridNeon: 0x63B22F,
-            gridDark: 0x031807,
+            gridDark: 0x041908,
             gridFloorVisible: false,
-            buildingEmissiveIntensity: 0.25,
+            buildingEmissiveIntensity: 0.35,
             highwayColor: 0x63B22F,
             highwayOpacity: 0.85,
             packetColor: 0xD9FF3D,
@@ -7729,26 +7761,31 @@ class CodeCityMetropolis {
           studio: {
             bgDark: 0x18181b,
             fogColor: 0x18181b,
-            fogDensity: 0.0012,
-            ambientColor: 0x3f3f46,
-            ambientIntensity: 1.8,
+            fogDensity: 0.0003,
+            ambientColor: 0x52525b,
+            ambientIntensity: 2.4,
+            hemiSkyColor: 0xffffff,
+            hemiGroundColor: 0x27272a,
+            hemiIntensity: 1.5,
             sunColor: 0xffffff,
-            sunIntensity: 2.0,
-            rimCyanColor: 0x71717a,
-            rimCyanIntensity: 0.4,
-            rimMagentaColor: 0x52525b,
-            rimMagentaIntensity: 0.3,
-            rimOrangeColor: 0x71717a,
-            rimOrangeIntensity: 0.3,
+            sunIntensity: 2.8,
+            secondarySunColor: 0xa1a1aa,
+            secondarySunIntensity: 1.4,
+            rimCyanColor: 0xa1a1aa,
+            rimCyanIntensity: 0.8,
+            rimMagentaColor: 0x71717a,
+            rimMagentaIntensity: 0.6,
+            rimOrangeColor: 0xa1a1aa,
+            rimOrangeIntensity: 0.8,
             plateColor: 0x27272a,
             plateBorderColor: 0x52525b,
-            plotColor: 0x18181b,
+            plotColor: 0x1f1f23,
             plotBorderColor: 0x3f3f46,
             walkwayColor: 0x27272a,
             gridNeon: 0x52525b,
             gridDark: 0x27272a,
             gridFloorVisible: false,
-            buildingEmissiveIntensity: 0.06,
+            buildingEmissiveIntensity: 0.12,
             highwayColor: 0x38bdf8,
             highwayOpacity: 0.6,
             packetColor: 0x60a5fa,
@@ -7761,19 +7798,24 @@ class CodeCityMetropolis {
             boulevardGuardrail: 0x71717a
           },
           light: {
-            bgDark: 0xEDF2F7,
-            fogColor: 0xEDF2F7,
-            fogDensity: 0.0009,
-            ambientColor: 0xE2E8F0,
-            ambientIntensity: 2.2,
-            sunColor: 0xFFFFFF,
-            sunIntensity: 2.2,
+            bgDark: 0xF1F5F9,
+            fogColor: 0xF1F5F9,
+            fogDensity: 0.00025,
+            ambientColor: 0xFFFFFF,
+            ambientIntensity: 2.5,
+            hemiSkyColor: 0xFFFFFF,
+            hemiGroundColor: 0xCBD5E1,
+            hemiIntensity: 1.8,
+            sunColor: 0xFFFBEB,
+            sunIntensity: 3.0,
+            secondarySunColor: 0xE0F2FE,
+            secondarySunIntensity: 1.5,
             rimCyanColor: 0x0284C7,
-            rimCyanIntensity: 0.6,
+            rimCyanIntensity: 0.9,
             rimMagentaColor: 0x63B22F,
-            rimMagentaIntensity: 0.5,
+            rimMagentaIntensity: 0.7,
             rimOrangeColor: 0xFF8000,
-            rimOrangeIntensity: 0.6,
+            rimOrangeIntensity: 0.8,
             plateColor: 0xFFFFFF,
             plateBorderColor: 0xCBD5E1,
             plotColor: 0xF8FAFC,
@@ -7782,7 +7824,7 @@ class CodeCityMetropolis {
             gridNeon: 0xCBD5E1,
             gridDark: 0xE2E8F0,
             gridFloorVisible: true,
-            buildingEmissiveIntensity: 0.04,
+            buildingEmissiveIntensity: 0.06,
             highwayColor: 0x0284C7,
             highwayOpacity: 0.65,
             packetColor: 0xFF8000,
@@ -7795,19 +7837,24 @@ class CodeCityMetropolis {
             boulevardGuardrail: 0x94A3B8
           },
           'arch-light': {
-            bgDark: 0xEDF2F7,
-            fogColor: 0xEDF2F7,
-            fogDensity: 0.0009,
-            ambientColor: 0xE2E8F0,
-            ambientIntensity: 2.2,
-            sunColor: 0xFFFFFF,
-            sunIntensity: 2.2,
+            bgDark: 0xF1F5F9,
+            fogColor: 0xF1F5F9,
+            fogDensity: 0.00025,
+            ambientColor: 0xFFFFFF,
+            ambientIntensity: 2.5,
+            hemiSkyColor: 0xFFFFFF,
+            hemiGroundColor: 0xCBD5E1,
+            hemiIntensity: 1.8,
+            sunColor: 0xFFFBEB,
+            sunIntensity: 3.0,
+            secondarySunColor: 0xE0F2FE,
+            secondarySunIntensity: 1.5,
             rimCyanColor: 0x0284C7,
-            rimCyanIntensity: 0.6,
+            rimCyanIntensity: 0.9,
             rimMagentaColor: 0x63B22F,
-            rimMagentaIntensity: 0.5,
+            rimMagentaIntensity: 0.7,
             rimOrangeColor: 0xFF8000,
-            rimOrangeIntensity: 0.6,
+            rimOrangeIntensity: 0.8,
             plateColor: 0xFFFFFF,
             plateBorderColor: 0xCBD5E1,
             plotColor: 0xF8FAFC,
@@ -7816,7 +7863,7 @@ class CodeCityMetropolis {
             gridNeon: 0xCBD5E1,
             gridDark: 0xE2E8F0,
             gridFloorVisible: true,
-            buildingEmissiveIntensity: 0.04,
+            buildingEmissiveIntensity: 0.06,
             highwayColor: 0x0284C7,
             highwayOpacity: 0.65,
             packetColor: 0xFF8000,
@@ -7840,28 +7887,30 @@ class CodeCityMetropolis {
           bgDark: 0x05050f
         };
 
-        // Vibrant High-Tech Language Color Palette
+        // Vibrant High-Tech Language Color Palette (Exact 1:1 match with Legend)
         this.langColors = {
-          'Rust': 0xDEA584,
-          'TypeScript': 0x3178C6,
-          'JavaScript': 0xF7DF1E,
-          'Python': 0x3776AB,
-          'HTML': 0xE34F26,
-          'CSS': 0x563D7C,
-          'Vue': 0x4FC08D,
-          'React': 0x61DAFB,
-          'JSON': 0xCBCB41,
-          'TOML': 0x9C4221,
-          'Markdown': 0x94A3B8,
-          'Go': 0x00ADD8,
-          'C': 0x555555,
-          'C++': 0xF34B7D,
-          'C#': 0x178600,
-          'Java': 0xB07219,
-          'PHP': 0x4F5D95,
-          'Ruby': 0x701516,
-          'Shell': 0x89E051,
-          'Default': 0x63B22F
+          'Rust': 0xFF8000,        // #FF8000
+          'TypeScript': 0x38BDF8,  // #38BDF8
+          'JavaScript': 0xF59E0B,  // #F59E0B
+          'Python': 0x10B981,      // #10B981
+          'CSS': 0xEC4899,         // #EC4899
+          'HTML': 0xE34F26,        // #E34F26
+          'JSON': 0xCBCB41,        // #CBCB41
+          'TOML': 0x9C4221,        // #9C4221
+          'YAML': 0xCB171E,        // #CB171E
+          'Markdown': 0x94A3B8,    // #94A3B8
+          'Shell': 0x89E051,       // #89E051
+          'Go': 0x00ADD8,          // #00ADD8
+          'C': 0x64748B,           // #64748B
+          'C++': 0xF34B7D,         // #F34B7D
+          'C#': 0x178600,          // #178600
+          'Java': 0xB07219,        // #B07219
+          'PHP': 0x4F5D95,         // #4F5D95
+          'Ruby': 0x701516,        // #701516
+          'Vue': 0x4FC08D,         // #4FC08D
+          'React': 0x61DAFB,       // #61DAFB
+          'SQL': 0xE38C00,         // #E38C00
+          'Default': 0x818CF8      // #818CF8 (Modern Indigo tech default, distinct from trees)
         };
 
         // Textures & Shared Materials Cache
@@ -7873,7 +7922,9 @@ class CodeCityMetropolis {
         this.gridFloor = null;
         this.floorMesh = null;
         this.ambientLight = null;
+        this.hemiLight = null;
         this.dirLight1 = null;
+        this.dirLight2 = null;
         this.rimLightCyan = null;
         this.rimLightMagenta = null;
         this.rimLightOrange = null;
@@ -7929,11 +7980,15 @@ class CodeCityMetropolis {
         this.setupCyberParticles();
         this.setupRadarScan();
 
-        // 7. Event Listeners with Throttling
+        // 7. Event Listeners with Throttling & WASD Navigation
         window.addEventListener('resize', this.onResize.bind(this));
         this.container.addEventListener('mousemove', this.onMouseMove.bind(this));
+        this.container.addEventListener('mousedown', (e) => { this.isMouseDown = true; });
+        window.addEventListener('mouseup', (e) => { this.isMouseDown = false; });
         this.container.addEventListener('click', this.onClick.bind(this));
         this.container.addEventListener('mouseleave', this.onMouseLeave.bind(this));
+        window.addEventListener('keydown', this.onKeyDown.bind(this));
+        window.addEventListener('keyup', this.onKeyUp.bind(this));
 
         // 8. Start Animation Loop
         this.animate = this.animate.bind(this);
@@ -7946,19 +8001,27 @@ class CodeCityMetropolis {
       setupLights() {
         const themeCfg = this.themeStyles[this.theme];
 
-        // Ambient Soft Fill
+        // 1. Soft Ambient Light
         this.ambientLight = new THREE.AmbientLight(themeCfg.ambientColor, themeCfg.ambientIntensity);
         this.scene.add(this.ambientLight);
 
-        // Primary Directional Sun
+        // 2. Hemisphere Light for Sky/Ground Natural Fill
+        this.hemiLight = new THREE.HemisphereLight(
+          themeCfg.hemiSkyColor || 0x38bdf8,
+          themeCfg.hemiGroundColor || 0x0f172a,
+          themeCfg.hemiIntensity || 1.4
+        );
+        this.scene.add(this.hemiLight);
+
+        // 3. Primary Directional Global Sun
         this.dirLight1 = new THREE.DirectionalLight(themeCfg.sunColor, themeCfg.sunIntensity);
-        this.dirLight1.position.set(240, 450, 180);
+        this.dirLight1.position.set(300, 600, 250);
         this.dirLight1.castShadow = true;
         this.dirLight1.shadow.mapSize.width = 2048;
         this.dirLight1.shadow.mapSize.height = 2048;
         this.dirLight1.shadow.camera.near = 10;
-        this.dirLight1.shadow.camera.far = 1200;
-        const d = 350;
+        this.dirLight1.shadow.camera.far = 2500;
+        const d = 800; // Expanded shadow box coverage so large metropolis is fully covered
         this.dirLight1.shadow.camera.left = -d;
         this.dirLight1.shadow.camera.right = d;
         this.dirLight1.shadow.camera.top = d;
@@ -7966,19 +8029,24 @@ class CodeCityMetropolis {
         this.dirLight1.shadow.bias = -0.0005;
         this.scene.add(this.dirLight1);
 
-        // Rim Light Cyan (West)
+        // 4. Secondary Fill Directional Sun (Opposite quadrant)
+        this.dirLight2 = new THREE.DirectionalLight(themeCfg.secondarySunColor || 0x38bdf8, themeCfg.secondarySunIntensity || 1.2);
+        this.dirLight2.position.set(-300, 450, -250);
+        this.scene.add(this.dirLight2);
+
+        // 5. Rim Light Cyan (West)
         this.rimLightCyan = new THREE.DirectionalLight(themeCfg.rimCyanColor, themeCfg.rimCyanIntensity);
-        this.rimLightCyan.position.set(-300, 120, -200);
+        this.rimLightCyan.position.set(-400, 180, -250);
         this.scene.add(this.rimLightCyan);
 
-        // Rim Light Magenta (South-East)
+        // 6. Rim Light Magenta (South-East)
         this.rimLightMagenta = new THREE.DirectionalLight(themeCfg.rimMagentaColor, themeCfg.rimMagentaIntensity);
-        this.rimLightMagenta.position.set(250, 160, -320);
+        this.rimLightMagenta.position.set(350, 200, -400);
         this.scene.add(this.rimLightMagenta);
 
-        // Rim Light Neon / Orange (Under-Glow Ground Bounce)
+        // 7. Rim Light Neon / Orange (Under-Glow Ground Bounce)
         this.rimLightOrange = new THREE.DirectionalLight(themeCfg.rimOrangeColor, themeCfg.rimOrangeIntensity);
-        this.rimLightOrange.position.set(0, -60, 200);
+        this.rimLightOrange.position.set(0, -80, 250);
         this.scene.add(this.rimLightOrange);
       }
 
@@ -8255,9 +8323,48 @@ class CodeCityMetropolis {
         img.src = dataUrl;
       }
 
-      getLanguageColor(lang) {
-        if (!lang) return this.langColors['Default'];
-        return this.langColors[lang] || this.langColors['Default'];
+      normalizeLanguageName(rawLang, path = '') {
+        const str = (rawLang || '').toString().trim().toLowerCase();
+        const ext = path ? path.split('.').pop().toLowerCase() : '';
+
+        if (str === 'rs' || str === 'rust' || ext === 'rs') return 'Rust';
+        if (str === 'ts' || str === 'tsx' || str === 'typescript' || ext === 'ts' || ext === 'tsx') return 'TypeScript';
+        if (str === 'js' || str === 'jsx' || str === 'mjs' || str === 'cjs' || str === 'javascript' || ext === 'js' || ext === 'jsx' || ext === 'mjs' || ext === 'cjs') return 'JavaScript';
+        if (str === 'py' || str === 'python' || ext === 'py') return 'Python';
+        if (str === 'css' || str === 'scss' || str === 'sass' || str === 'less' || ext === 'css' || ext === 'scss' || ext === 'sass' || ext === 'less') return 'CSS';
+        if (str === 'html' || str === 'htm' || str === 'markup' || str === 'svg' || str === 'xml' || ext === 'html' || ext === 'htm' || ext === 'svg' || ext === 'xml') return 'HTML';
+        if (str === 'json' || ext === 'json') return 'JSON';
+        if (str === 'toml' || ext === 'toml') return 'TOML';
+        if (str === 'yaml' || str === 'yml' || ext === 'yaml' || ext === 'yml') return 'YAML';
+        if (str === 'md' || str === 'markdown' || ext === 'md' || ext === 'markdown') return 'Markdown';
+        if (str === 'sh' || str === 'bash' || str === 'zsh' || str === 'shell' || ext === 'sh' || ext === 'bash' || ext === 'zsh') return 'Shell';
+        if (str === 'go' || str === 'golang' || ext === 'go') return 'Go';
+        if (str === 'c' || str === 'h' || ext === 'c' || ext === 'h') return 'C';
+        if (str === 'cpp' || str === 'cc' || str === 'cxx' || str === 'hpp' || ext === 'cpp' || ext === 'cc' || ext === 'cxx' || ext === 'hpp') return 'C++';
+        if (str === 'cs' || str === 'c#' || str === 'csharp' || ext === 'cs') return 'C#';
+        if (str === 'java' || ext === 'java') return 'Java';
+        if (str === 'php' || ext === 'php') return 'PHP';
+        if (str === 'ruby' || str === 'rb' || ext === 'rb') return 'Ruby';
+        if (str === 'vue' || ext === 'vue') return 'Vue';
+        if (str === 'react' || str === 'jsx') return 'React';
+        if (str === 'sql' || ext === 'sql') return 'SQL';
+
+        if (rawLang && rawLang !== 'Default' && rawLang !== 'Code' && rawLang !== 'text') {
+          return rawLang.charAt(0).toUpperCase() + rawLang.slice(1);
+        }
+        return 'Other';
+      }
+
+      getLanguageColor(lang, path = '') {
+        const norm = this.normalizeLanguageName(lang, path);
+        if (this.langColors[norm] !== undefined) {
+          return this.langColors[norm];
+        }
+        const lowerNorm = norm.toLowerCase();
+        for (const [k, v] of Object.entries(this.langColors)) {
+          if (k.toLowerCase() === lowerNorm) return v;
+        }
+        return this.langColors['Default'] || 0x818CF8;
       }
 
       createWindowTexture(hexColor) {
@@ -8522,9 +8629,11 @@ class CodeCityMetropolis {
             const normPath = path.replace(/\\/g, '/');
             if (!seen.has(normPath)) {
               seen.add(normPath);
+              const rawLang = fileObj.language || (typeof getLanguageFromPath === 'function' ? getLanguageFromPath(normPath) : 'Default');
+              const normLang = this.normalizeLanguageName(rawLang, normPath);
               list.push({
                 path: normPath,
-                language: fileObj.language || (typeof getLanguageFromPath === 'function' ? getLanguageFromPath(normPath) : 'Default'),
+                language: normLang,
                 code_lines: fileObj.code_lines || fileObj.lines || fileObj.total_lines || 40,
                 total_lines: fileObj.total_lines || fileObj.code_lines || 40,
                 complexity: fileObj.complexity || 1,
@@ -8542,15 +8651,16 @@ class CodeCityMetropolis {
             const normPath = path.replace(/\\/g, '/');
             if (!seen.has(normPath)) {
               seen.add(normPath);
-              const lang = typeof getLanguageFromPath === 'function' ? getLanguageFromPath(normPath) : 'Default';
+              const rawLang = typeof getLanguageFromPath === 'function' ? getLanguageFromPath(normPath) : 'Default';
+              const normLang = this.normalizeLanguageName(rawLang, normPath);
               const lines = content ? content.split('\n').length : 30;
-              const syms = typeof extractSymbols === 'function' ? extractSymbols(content, lang, normPath) : [];
+              const syms = typeof extractSymbols === 'function' ? extractSymbols(content, normLang.toLowerCase(), normPath) : [];
               list.push({
                 path: normPath,
-                language: lang,
+                language: normLang,
                 code_lines: lines,
                 total_lines: lines,
-                complexity: 1,
+                complexity: typeof calculateComplexity === 'function' ? calculateComplexity(content) : 1,
                 risk_score: 0,
                 symbols: { functions: syms, classes: [], structs: [], interfaces: [], imports: [] },
                 intent_role: 'Core',
@@ -9162,7 +9272,7 @@ class CodeCityMetropolis {
           const loc = file.code_lines || file.total_lines || 30;
           const complexity = file.complexity || 1;
           const risk = file.risk_score || (complexity > 18 ? 35 : 0);
-          const langColorHex = this.getLanguageColor(file.language);
+          const langColorHex = this.getLanguageColor(file.language, file.path);
 
           const height = Math.min(220, Math.max(8.0, Math.sqrt(loc) * 3.8));
           const baseSize = Math.max(10, Math.min(20, 12 + Math.log10(Math.max(1, complexity)) * 4.5));
@@ -9986,6 +10096,35 @@ class CodeCityMetropolis {
           this.controls.update();
         }
 
+        // WASD Smooth Navigation (Forward, Back, Strafe Left, Strafe Right)
+        if (!this.isFlying && (this.keysDown['KeyW'] || this.keysDown['KeyS'] || this.keysDown['KeyA'] || this.keysDown['KeyD'] ||
+            this.keysDown['ArrowUp'] || this.keysDown['ArrowDown'] || this.keysDown['ArrowLeft'] || this.keysDown['ArrowRight'])) {
+          const forward = new THREE.Vector3();
+          this.camera.getWorldDirection(forward);
+          forward.y = 0;
+          forward.normalize();
+
+          const right = new THREE.Vector3();
+          right.crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+
+          const isShift = this.keysDown['ShiftLeft'] || this.keysDown['ShiftRight'];
+          const moveSpeed = (this.isStreetView ? 2.2 : 4.5) * (isShift ? 2.5 : 1.0);
+          const moveDelta = new THREE.Vector3();
+
+          if (this.keysDown['KeyW'] || this.keysDown['ArrowUp']) moveDelta.addScaledVector(forward, moveSpeed);
+          if (this.keysDown['KeyS'] || this.keysDown['ArrowDown']) moveDelta.addScaledVector(forward, -moveSpeed);
+          if (this.keysDown['KeyA'] || this.keysDown['ArrowLeft']) moveDelta.addScaledVector(right, -moveSpeed);
+          if (this.keysDown['KeyD'] || this.keysDown['ArrowRight']) moveDelta.addScaledVector(right, moveSpeed);
+
+          this.camera.position.add(moveDelta);
+          this.controls.target.add(moveDelta);
+
+          if (this.isStreetView) {
+            this.camera.position.y = 4.0;
+            this.controls.target.y = 4.0;
+          }
+        }
+
         // Smooth Camera Flight (Lerp)
         if (this.isFlying && this.flyState) {
           const elapsed = now - this.flyState.startTime;
@@ -10166,7 +10305,7 @@ class CodeCityMetropolis {
             tooltip.style.top = (this.mouseRaw.y + 16) + 'px';
             tooltip.classList.remove('hidden');
 
-            const langHex = '#' + this.getLanguageColor(hitBuilding.fileData.language).toString(16).padStart(6, '0');
+            const langHex = '#' + this.getLanguageColor(hitBuilding.fileData.language, hitBuilding.fileData.path).toString(16).padStart(6, '0');
             const loc = hitBuilding.loc || 0;
             const fileName = hitBuilding.fileData.path.split('/').pop();
 
@@ -10297,7 +10436,7 @@ class CodeCityMetropolis {
         const loc = buildingObj.loc || file.code_lines || file.total_lines || 0;
         const comp = buildingObj.complexity || file.complexity || 1;
         const risk = buildingObj.risk || file.risk_score || 0;
-        const langHex = '#' + this.getLanguageColor(lang).toString(16).padStart(6, '0');
+        const langHex = '#' + this.getLanguageColor(lang, filePath).toString(16).padStart(6, '0');
 
         const langBadge = document.getElementById('cityDrawerLangBadge');
         if (langBadge) {
@@ -10864,6 +11003,109 @@ class CodeCityMetropolis {
         this.setTheme(order[nextIdx]);
       }
 
+      onKeyDown(e) {
+        // Prevent default scrolling for WASD / Arrow keys if target is canvas or body (not input)
+        const tag = e.target ? e.target.tagName : '';
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+
+        if (['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ShiftLeft', 'ShiftRight'].includes(e.code)) {
+          this.keysDown[e.code] = true;
+          if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+            e.preventDefault();
+          }
+        }
+      }
+
+      onKeyUp(e) {
+        if (this.keysDown[e.code]) {
+          delete this.keysDown[e.code];
+        }
+      }
+
+      toggleStreetView() {
+        this.isStreetView = !this.isStreetView;
+        const btn = document.getElementById('btnCityStreetViewToggle');
+        const badge = document.getElementById('cityStreetViewBadge');
+        const icon = document.getElementById('cityStreetViewIcon');
+
+        if (this.isStreetView) {
+          // Save previous overview camera state
+          this.overviewCamState = {
+            pos: this.camera.position.clone(),
+            target: this.controls.target.clone()
+          };
+
+          // Center at Downtown Core or current active district
+          let streetX = 0, streetZ = 0;
+          if (this.selectedBuilding) {
+            streetX = this.selectedBuilding.x;
+            streetZ = this.selectedBuilding.z + 20;
+          } else if (this.districtTreeRoot) {
+            streetX = this.districtTreeRoot.x || 0;
+            streetZ = (this.districtTreeRoot.z || 0) + 15;
+          }
+
+          const targetCam = new THREE.Vector3(streetX, 4.0, streetZ);
+          const targetLook = new THREE.Vector3(streetX, 4.0, streetZ - 40);
+
+          this.controls.minPolarAngle = 0.05;
+          this.controls.maxPolarAngle = Math.PI / 2 - 0.01;
+          this.controls.minDistance = 0.5;
+          this.controls.maxDistance = 1800;
+
+          this.smoothCameraFlight(targetCam, targetLook, 750);
+
+          if (badge) {
+            badge.innerText = 'ON 🚶';
+            badge.className = 'text-[10px] ml-0.5 font-bold text-[#D9FF3D]';
+          }
+          if (btn) btn.title = "Street View beenden (Zurück zur Vogelperspektive 🦅)";
+        } else {
+          if (this.overviewCamState) {
+            this.smoothCameraFlight(this.overviewCamState.pos, this.overviewCamState.target, 750);
+          } else {
+            this.autoFitMetropolis(true);
+          }
+          this.controls.minDistance = 25;
+          this.controls.maxDistance = 2500;
+          if (badge) {
+            badge.innerText = 'OFF';
+            badge.className = 'text-[10px] ml-0.5 font-bold text-zinc-400';
+          }
+          if (btn) btn.title = "🚶 Street View Modus (Erkundung auf Straßenniveau mit WASD)";
+        }
+      }
+
+      exportStandaloneCityHtml() {
+        const activeData = this.data || (typeof currentData !== 'undefined' ? currentData : null);
+        if (!activeData || !activeData.files) {
+          alert("Keine Codebase-Daten für den Standalone HTML-Export geladen.");
+          return;
+        }
+
+        const projName = (activeData.project_name || 'CodeCity_Metropolis').replace(/[^a-zA-Z0-9_-]/g, '_');
+        const jsonStr = JSON.stringify(activeData);
+        
+        let pageHtml = document.documentElement.outerHTML;
+        const autoInjectScript = `\n<script>\nwindow.addEventListener('DOMContentLoaded', () => {\n  const standaloneData = ${jsonStr};\n  if (typeof loadAnalysisResultsData === 'function') {\n    loadAnalysisResultsData(standaloneData);\n  } else if (window.codeCityApp && typeof window.codeCityApp.buildCity === 'function') {\n    window.codeCityApp.buildCity(standaloneData);\n  }\n});\n<\/script>\n`;
+
+        if (pageHtml.includes('</head>')) {
+          pageHtml = pageHtml.replace('</head>', autoInjectScript + '</head>');
+        } else {
+          pageHtml = pageHtml + autoInjectScript;
+        }
+
+        const blob = new Blob([pageHtml], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${projName}_3D_CodeCity_Standalone.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
       setTheme(themeName) {
         if (!this.themeStyles[themeName]) return;
         this.theme = themeName;
@@ -10879,9 +11121,18 @@ class CodeCityMetropolis {
           this.ambientLight.color.setHex(themeCfg.ambientColor);
           this.ambientLight.intensity = themeCfg.ambientIntensity;
         }
+        if (this.hemiLight) {
+          this.hemiLight.color.setHex(themeCfg.hemiSkyColor || 0x38bdf8);
+          this.hemiLight.groundColor.setHex(themeCfg.hemiGroundColor || 0x0f172a);
+          this.hemiLight.intensity = themeCfg.hemiIntensity || 1.4;
+        }
         if (this.dirLight1) {
           this.dirLight1.color.setHex(themeCfg.sunColor);
           this.dirLight1.intensity = themeCfg.sunIntensity;
+        }
+        if (this.dirLight2) {
+          this.dirLight2.color.setHex(themeCfg.secondarySunColor || 0x38bdf8);
+          this.dirLight2.intensity = themeCfg.secondarySunIntensity || 1.2;
         }
         if (this.rimLightCyan) {
           this.rimLightCyan.color.setHex(themeCfg.rimCyanColor);
