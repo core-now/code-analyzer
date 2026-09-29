@@ -614,33 +614,38 @@
       let reviewResult = null;
 
       try {
-        const payload = {
-          model: appSettings.llmModel || "local-model",
-          messages: [
-            {
-              role: "system",
-              content: "Du bist ein Senior Software-Architekt & Code-Reviewer. Analysiere den bereitgestellten Quellcode präzise auf Deutsch.\nAntworte zwingend in genau 3 Abschnitten mit diesen Überschriften:\n🎯 Zweck & Rolle im Projekt:\n(1-2 prägnante Sätze)\n🛡️ Code-Qualität & Bugs / Risiken:\n(Sicherheit, Memory, Error-Handling, Edge Cases)\n💡 Refactoring-Tipp:\n(Konkrete, praxistaugliche Code-Verbesserung)"
-            },
-            {
-              role: "user",
-              content: `Dateipfad: ${resolvedPath}\nSprache: ${lang.toUpperCase()}\n\nQuellcode:\n\`\`\`${lang}\n${promptSnippet}\n\`\`\``
-            }
-          ],
-          temperature: 0.2
-        };
+        const reviewPrompt = `Dateipfad: ${resolvedPath}\nSprache: ${lang.toUpperCase()}\n\nQuellcode:\n\`\`\`${lang}\n${promptSnippet}\n\`\`\``;
+        const systemPrompt = "Du bist ein Senior Software-Architekt & Code-Reviewer. Analysiere den bereitgestellten Quellcode präzise auf Deutsch.\nAntworte zwingend in genau 3 Abschnitten mit diesen Überschriften:\n🎯 Zweck & Rolle im Projekt:\n(1-2 prägnante Sätze)\n🛡️ Code-Qualität & Bugs / Risiken:\n(Sicherheit, Memory, Error-Handling, Edge Cases)\n💡 Refactoring-Tipp:\n(Konkrete, praxistaugliche Code-Verbesserung)";
 
-        const resp = await fetch(appSettings.llmEndpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
+        let rawContent = "";
+        if (typeof window.executeUniversalLLMCall === 'function') {
+          rawContent = await window.executeUniversalLLMCall({
+            prompt: reviewPrompt,
+            systemPrompt: systemPrompt,
+            requireJson: false,
+            timeout: 15000
+          });
+        } else {
+          const resp = await fetch(appSettings.llmEndpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: appSettings.llmModel || "local-model",
+              messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: reviewPrompt }
+              ],
+              temperature: 0.2
+            })
+          });
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const res = await resp.json();
+          rawContent = res.choices?.[0]?.message?.content || res.content || res.response || "";
+        }
 
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const res = await resp.json();
-        const rawContent = res.choices?.[0]?.message?.content || res.content || "";
         reviewResult = parseAIReviewSections(rawContent, resolvedPath, lang, codeContent);
       } catch (err) {
-        console.warn("Local LLM request failed, using intelligent fallback heuristics:", err);
+        console.warn("Universal LLM request failed, using intelligent fallback heuristics:", err);
         reviewResult = generateFallbackFileReview(resolvedPath, lang, codeContent, err.message);
       }
 

@@ -30,7 +30,7 @@ import urllib.error
 from urllib.parse import urlparse, parse_qs
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 
 try:
     from dotenv import load_dotenv
@@ -59,8 +59,9 @@ if sys.platform.startswith("win"):
 
 # --- Configuration & Defaults ---
 DEFAULT_PORT = int(os.environ.get("PORT", "8084"))
-DEFAULT_LLM_URL = os.environ.get("LLM_URL", "http://localhost:11434/v1/chat/completions" if os.environ.get("LLM_URL") is None and os.environ.get("USE_OLLAMA") else "http://localhost:8084/v1/chat/completions")
-DEFAULT_LLM_MODEL = os.environ.get("LLM_MODEL", "qwen2.5-coder:7b")
+DEFAULT_LLM_PROVIDER = os.environ.get("DEFAULT_LLM_PROVIDER", os.environ.get("LLM_PROVIDER", "ollama"))
+DEFAULT_LLM_URL = os.environ.get("DEFAULT_LLM_URL", os.environ.get("LLM_URL", "http://localhost:11434/api/generate" if DEFAULT_LLM_PROVIDER == "ollama" else "http://localhost:11434/v1/chat/completions"))
+DEFAULT_LLM_MODEL = os.environ.get("DEFAULT_LLM_MODEL", os.environ.get("LLM_MODEL", "qwen2.5-coder:7b"))
 DEFAULT_CACHE_FILE = os.environ.get("CACHE_FILE", "codebase_analysis_cache.json")
 DEFAULT_RESULTS_FILE = os.environ.get("RESULTS_FILE", "codebase_analysis_results.json")
 
@@ -1107,13 +1108,195 @@ def create_module_batches(file_list: List[Dict[str, Any]], batch_size: int = 6) 
     return batches
 
 
-class LLMClient:
-    """Interacts with OpenAI-compatible LLM endpoints for codebase insights."""
+DEFAULT_LLM_PROVIDER = os.environ.get("DEFAULT_LLM_PROVIDER", os.environ.get("LLM_PROVIDER", "ollama"))
+DEFAULT_LLM_API_KEY = os.environ.get("LLM_API_KEY", "")
 
-    def __init__(self, endpoint_url: str = DEFAULT_LLM_URL, api_key: str = "dummy", model: str = DEFAULT_LLM_MODEL):
+
+class LLMClient:
+    """Universal LLM Client supporting Ollama, llama.cpp Server (native), and OpenAI-compatible endpoints."""
+
+    def __init__(
+        self,
+        endpoint_url: str = DEFAULT_LLM_URL,
+        api_key: str = DEFAULT_LLM_API_KEY,
+        model: str = DEFAULT_LLM_MODEL,
+        provider: str = DEFAULT_LLM_PROVIDER
+    ):
         self.endpoint_url = endpoint_url
-        self.api_key = api_key
+        self.api_key = api_key or "dummy"
         self.model = model
+        self.provider = provider or "ollama"
+
+    def _detect_provider_and_url(self, override_provider: Optional[str] = None, override_endpoint: Optional[str] = None) -> Tuple[str, str]:
+        prov = (override_provider or self.provider or "ollama").lower()
+        if override_endpoint is not None and override_endpoint != "":
+            url = override_endpoint.strip()
+        elif override_provider and override_provider != self.provider:
+            url = ""
+        else:
+            url = (self.endpoint_url or "").strip()
+
+        if not url:
+            if prov == "llamacpp":
+                url = "http://localhost:8080/completion"
+            elif prov == "ollama":
+                url = "http://localhost:11434/api/generate"
+            else:
+                url = "http://localhost:11434/v1/chat/completions"
+        return prov, url
+
+    def execute_prompt(
+        self,
+        prompt: str,
+        system_prompt: str = "You are a senior software architect. Respond with valid output.",
+        require_json: bool = False,
+        override_provider: Optional[str] = None,
+        override_endpoint: Optional[str] = None,
+        override_model: Optional[str] = None,
+        override_api_key: Optional[str] = None,
+        timeout: int = 15
+    ) -> Tuple[bool, str]:
+        """Executes a prompt across Ollama, llama.cpp, or OpenAI-compatible endpoints.
+        
+        Returns:
+            Tuple[bool, str]: (success, raw_text_response)
+        """
+        prov, url = self._detect_provider_and_url(override_provider, override_endpoint)
+        model = override_model or self.model or "qwen2.5-coder:7b"
+        api_key = override_api_key if override_api_key is not None else self.api_key
+
+        headers = {"Content-Type": "application/json"}
+        if api_key and api_key != "dummy":
+            headers["Authorization"] = f"Bearer {api_key}"
+
+        payload: Dict[str, Any] = {}
+
+        # 1. llama.cpp Server Native (/completion)
+        if prov == "llamacpp" or url.rstrip("/").endswith("/completion"):
+            full_prompt = f"System: {system_prompt}\nUser: {prompt}\nAssistant:"
+            payload = {
+                "prompt": full_prompt,
+                "n_predict": 1024,
+                "temperature": 0.2,
+                "stream": False
+            }
+            if require_json:
+                payload["json_schema"] = {"type": "object"}
+
+        # 2. Ollama Native API (/api/generate or /api/chat)
+        elif prov == "ollama" and (url.rstrip("/").endswith("/api/generate") or url.rstrip("/").endswith("/api/chat") or ":11434/api" in url):
+            if url.rstrip("/").endswith("/api/chat"):
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "stream": False,
+                    "options": {"temperature": 0.2}
+                }
+                if require_json:
+                    payload["format"] = "json"
+            else:
+                # Default Ollama /api/generate
+                if not url.rstrip("/").endswith("/api/generate"):
+                    url = url.rstrip("/") + "/api/generate"
+                payload = {
+                    "model": model,
+                    "prompt": prompt,
+                    "system": system_prompt,
+                    "stream": False,
+                    "options": {"temperature": 0.2}
+                }
+                if require_json:
+                    payload["format"] = "json"
+
+        # 3. OpenAI-Compatible (/v1/chat/completions, LM Studio, vLLM, etc.)
+        else:
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.2,
+                "stream": False
+            }
+            if require_json:
+                payload["response_format"] = {"type": "json_object"}
+
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            headers=headers
+        )
+
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw_body = resp.read().decode("utf-8")
+            data = json.loads(raw_body)
+
+            # Response parsing based on standard formats
+            # 1. llama.cpp Native: data.content
+            if "content" in data and isinstance(data["content"], str):
+                return True, data["content"].strip()
+
+            # 2. Ollama /api/generate: data.response
+            if "response" in data and isinstance(data["response"], str):
+                return True, data["response"].strip()
+
+            # 3. Ollama /api/chat or OpenAI: data.message.content or data.choices[0].message.content
+            if "message" in data and isinstance(data["message"], dict) and "content" in data["message"]:
+                return True, data["message"]["content"].strip()
+
+            if "choices" in data and isinstance(data["choices"], list) and len(data["choices"]) > 0:
+                choice = data["choices"][0]
+                if "message" in choice and "content" in choice["message"]:
+                    return True, str(choice["message"]["content"]).strip()
+                if "text" in choice:
+                    return True, str(choice["text"]).strip()
+
+            return True, raw_body
+
+    def test_connection(
+        self,
+        provider: Optional[str] = None,
+        endpoint_url: Optional[str] = None,
+        model: Optional[str] = None,
+        api_key: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Tests the connection to the specified LLM endpoint."""
+        prov, url = self._detect_provider_and_url(provider, endpoint_url)
+        mdl = model or self.model or "qwen2.5-coder:7b"
+        test_prompt = "Say 'OK' and nothing else."
+
+        try:
+            success, res_text = self.execute_prompt(
+                prompt=test_prompt,
+                system_prompt="You are a ping test assistant.",
+                require_json=False,
+                override_provider=prov,
+                override_endpoint=url,
+                override_model=mdl,
+                override_api_key=api_key,
+                timeout=8
+            )
+            return {
+                "success": success,
+                "message": f"Connected successfully to {prov.upper()} ({url})",
+                "sample_response": res_text[:120],
+                "provider": prov,
+                "endpoint": url,
+                "model": mdl
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "message": f"Connection to {prov.upper()} ({url}) failed: {str(e)}",
+                "provider": prov,
+                "endpoint": url,
+                "model": mdl
+            }
 
     def analyze_module_batch(self, batch_data: Dict[str, Any], project_name: str = "Project") -> Dict[str, Any]:
         """Analyzes a specific module batch chunk."""
@@ -1128,33 +1311,21 @@ class LLMClient:
             f'{{"module_summary": "...", "intent_critique": "...", "risks": ["..."], "quality_score": 90}}'
         )
 
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": "You are a senior principal software architect. Respond with valid JSON only."},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.2,
-            "response_format": {"type": "json_object"}
-        }
-
         for attempt in range(3):
             try:
-                req = urllib.request.Request(
-                    self.endpoint_url,
-                    data=json.dumps(payload).encode("utf-8"),
-                    headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.api_key}"}
+                success, content_str = self.execute_prompt(
+                    prompt=prompt,
+                    system_prompt="You are a senior principal software architect. Respond with valid JSON only.",
+                    require_json=True,
+                    timeout=15
                 )
-                with urllib.request.urlopen(req, timeout=15) as resp:
-                    data = json.loads(resp.read().decode("utf-8"))
-                    content_str = data["choices"][0]["message"]["content"]
-                    try:
-                        parsed = json.loads(content_str)
-                    except Exception:
-                        match = re.search(r'\{.*\}', content_str, re.DOTALL)
-                        parsed = json.loads(match.group(0)) if match else {"module_summary": content_str}
-                    return {"success": True, "analysis": parsed}
-            except Exception as e:
+                try:
+                    parsed = json.loads(content_str)
+                except Exception:
+                    match = re.search(r'\{.*\}', content_str, re.DOTALL)
+                    parsed = json.loads(match.group(0)) if match else {"module_summary": content_str}
+                return {"success": True, "analysis": parsed}
+            except Exception:
                 time.sleep(0.4 * (attempt + 1))
 
         # Fallback Heuristic
@@ -1178,24 +1349,14 @@ class LLMClient:
             f"Generate a concise architecture critique, 3 core strengths, 3 refactoring risks, and recommended roadmap."
         )
 
-        payload = {
-            "model": self.model,
-            "messages": [
-                {"role": "system", "content": "You are a senior principal software architect."},
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.2
-        }
-
         try:
-            req = urllib.request.Request(
-                self.endpoint_url,
-                data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json", "Authorization": f"Bearer {self.api_key}"}
+            success, content_str = self.execute_prompt(
+                prompt=prompt,
+                system_prompt="You are a senior principal software architect.",
+                require_json=False,
+                timeout=15
             )
-            with urllib.request.urlopen(req, timeout=12) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-                return {"success": True, "analysis": data["choices"][0]["message"]["content"]}
+            return {"success": True, "analysis": content_str}
         except Exception as e:
             return {
                 "success": False,
@@ -1447,8 +1608,21 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
                     "type": KnowledgeBaseServer.db.db_type,
                     "driver": KnowledgeBaseServer.db.driver
                 },
-                "llm_endpoint": DEFAULT_LLM_URL,
+                "llm_provider": KnowledgeBaseServer.llm.provider,
+                "llm_endpoint": KnowledgeBaseServer.llm.endpoint_url,
+                "llm_model": KnowledgeBaseServer.llm.model,
                 "cache_file": DEFAULT_CACHE_FILE
+            }).encode("utf-8"))
+            return
+
+        # LLM Configuration
+        if parsed_path == "/api/llm/config":
+            self._set_headers(200)
+            self.wfile.write(json.dumps({
+                "provider": KnowledgeBaseServer.llm.provider,
+                "endpoint_url": KnowledgeBaseServer.llm.endpoint_url,
+                "model": KnowledgeBaseServer.llm.model,
+                "has_api_key": bool(KnowledgeBaseServer.llm.api_key and KnowledgeBaseServer.llm.api_key != "dummy")
             }).encode("utf-8"))
             return
 
@@ -1965,6 +2139,53 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
             except Exception as e:
                 self._set_headers(500)
                 self.wfile.write(json.dumps({"error": str(e)}).encode("utf-8"))
+            return
+
+        if parsed_path == "/api/llm/test-connection":
+            try:
+                body = json.loads(post_data.decode("utf-8")) if post_data else {}
+                provider = body.get("provider")
+                endpoint_url = body.get("endpoint_url") or body.get("endpoint")
+                model = body.get("model")
+                api_key = body.get("api_key")
+                result = KnowledgeBaseServer.llm.test_connection(
+                    provider=provider,
+                    endpoint_url=endpoint_url,
+                    model=model,
+                    api_key=api_key
+                )
+                self._set_headers(200 if result.get("success") else 502)
+                self.wfile.write(json.dumps(result).encode("utf-8"))
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"success": False, "error": str(e), "message": str(e)}).encode("utf-8"))
+            return
+
+        if parsed_path in ["/api/llm/generate", "/api/llm/query"]:
+            try:
+                body = json.loads(post_data.decode("utf-8"))
+                prompt = body.get("prompt", "")
+                system_prompt = body.get("system_prompt", "You are a software architect.")
+                require_json = bool(body.get("require_json", False))
+                provider = body.get("provider")
+                endpoint_url = body.get("endpoint_url") or body.get("endpoint")
+                model = body.get("model")
+                api_key = body.get("api_key")
+
+                success, content = KnowledgeBaseServer.llm.execute_prompt(
+                    prompt=prompt,
+                    system_prompt=system_prompt,
+                    require_json=require_json,
+                    override_provider=provider,
+                    override_endpoint=endpoint_url,
+                    override_model=model,
+                    override_api_key=api_key
+                )
+                self._set_headers(200)
+                self.wfile.write(json.dumps({"success": success, "content": content}).encode("utf-8"))
+            except Exception as e:
+                self._set_headers(500)
+                self.wfile.write(json.dumps({"success": False, "error": str(e)}).encode("utf-8"))
             return
 
         self._set_headers(404)

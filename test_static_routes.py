@@ -28,6 +28,7 @@ def test_static_routes():
         ("/static/js/git-importer.js", 200, "text/javascript"),
         ("/static/js/app.js", 200, "text/javascript"),
         ("/api/status", 200, "application/json"),
+        ("/api/llm/config", 200, "application/json"),
         ("/api/auth/config", 200, "application/json"),
         ("/static/non_existent_file.xyz", 404, None),
     ]

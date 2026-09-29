@@ -131,8 +131,10 @@
     // --- Application Settings & Persistence ---
     const DEFAULT_SETTINGS = {
       themeMode: "dark",
-      llmEndpoint: "http://localhost:8084/v1/chat/completions",
-      llmModel: "local-model",
+      llmProvider: "ollama",
+      llmEndpoint: "http://localhost:11434/api/generate",
+      llmModel: "qwen2.5-coder:7b",
+      llmApiKey: "",
       llmBatchSize: 30,
       ignorePaths: ".git, node_modules, target, dist, build, .idea, .vscode, .fleet, .eclipse, .agents, .agent, .claude, .gemini, .cursor, .windsurf, .copilot, .github, .gitlab, .gitea, .devcontainer, .husky, .changeset, coverage, __pycache__, .venv, env, vendor, .next, .nuxt, .turbo",
       complexityThreshold: 20,
@@ -359,18 +361,271 @@
       }, false);
     }
 
+    // --- Universal LLM Client & Provider Adapters ---
+    function onLLMProviderChanged() {
+      const providerEl = document.getElementById('setting-llm-provider');
+      const endpointInput = document.getElementById('setting-llm-endpoint');
+      const badgeEl = document.getElementById('setting-llm-provider-badge');
+      const helpEl = document.getElementById('setting-llm-endpoint-help');
+      if (!providerEl) return;
+
+      const val = providerEl.value;
+      if (val === 'llamacpp') {
+        if (badgeEl) {
+          badgeEl.innerText = 'llama.cpp Server (Native)';
+          badgeEl.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/20 text-sky-400 border border-sky-500/40 font-bold';
+        }
+        if (endpointInput && (!endpointInput.value || endpointInput.value.includes('11434') || endpointInput.value.includes('1234') || endpointInput.value.includes('8084'))) {
+          endpointInput.value = 'http://localhost:8080/completion';
+        }
+        if (helpEl) helpEl.innerHTML = 'Native llama.cpp: <code>http://localhost:8080/completion</code> (Payload: prompt, n_predict, stream: false)';
+      } else if (val === 'openai') {
+        if (badgeEl) {
+          badgeEl.innerText = 'OpenAI-kompatibel / LM Studio / vLLM';
+          badgeEl.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-400 border border-purple-500/40 font-bold';
+        }
+        if (endpointInput && (!endpointInput.value || endpointInput.value.includes('11434') || endpointInput.value.includes('8080') || endpointInput.value.includes('8084'))) {
+          endpointInput.value = 'http://localhost:1234/v1/chat/completions';
+        }
+        if (helpEl) helpEl.innerHTML = 'OpenAI Compatible: <code>http://localhost:1234/v1/chat/completions</code> (Payload: messages, model)';
+      } else {
+        // ollama
+        if (badgeEl) {
+          badgeEl.innerText = 'Ollama Native / API';
+          badgeEl.className = 'text-[10px] font-mono px-2 py-0.5 rounded bg-[#63B22F]/20 text-[#63B22F] border border-[#63B22F]/40 font-bold';
+        }
+        if (endpointInput && (!endpointInput.value || endpointInput.value.includes('8080') || endpointInput.value.includes('1234') || endpointInput.value.includes('8084'))) {
+          endpointInput.value = 'http://localhost:11434/api/generate';
+        }
+        if (helpEl) helpEl.innerHTML = 'Ollama Native: <code>http://localhost:11434/api/generate</code> | Chat: <code>http://localhost:11434/api/chat</code>';
+      }
+    }
+
     function setLLMPreset(preset) {
+      const providerEl = document.getElementById('setting-llm-provider');
       const endpointInput = document.getElementById('setting-llm-endpoint');
       const modelInput = document.getElementById('setting-llm-model');
+
       if (preset === 'local-ollama') {
-        if (endpointInput) endpointInput.value = 'http://localhost:11434/v1/chat/completions';
+        if (providerEl) providerEl.value = 'ollama';
+        if (endpointInput) endpointInput.value = 'http://localhost:11434/api/generate';
         if (modelInput && (!modelInput.value || modelInput.value === 'local-model')) modelInput.value = 'qwen2.5-coder:7b';
-      } else if (preset === 'docker-ollama') {
-        if (endpointInput) endpointInput.value = 'http://ollama:11434/v1/chat/completions';
+      } else if (preset === 'llamacpp-server') {
+        if (providerEl) providerEl.value = 'llamacpp';
+        if (endpointInput) endpointInput.value = 'http://localhost:8080/completion';
+        if (modelInput && (!modelInput.value || modelInput.value === 'local-model')) modelInput.value = 'default';
+      } else if (preset === 'openai-lmstudio') {
+        if (providerEl) providerEl.value = 'openai';
+        if (endpointInput) endpointInput.value = 'http://localhost:1234/v1/chat/completions';
         if (modelInput && (!modelInput.value || modelInput.value === 'local-model')) modelInput.value = 'qwen2.5-coder:7b';
       } else if (preset === 'backend-proxy') {
+        if (providerEl) providerEl.value = 'openai';
         if (endpointInput) endpointInput.value = 'http://localhost:8084/v1/chat/completions';
         if (modelInput && (!modelInput.value || modelInput.value === 'local-model')) modelInput.value = 'qwen2.5-coder:7b';
+      }
+      onLLMProviderChanged();
+    }
+
+    async function testLLMConnection() {
+      const btn = document.getElementById('btnTestLLMConnection');
+      const statusEl = document.getElementById('llmConnectionStatus');
+      const provider = document.getElementById('setting-llm-provider')?.value || appSettings.llmProvider || 'ollama';
+      const endpoint = document.getElementById('setting-llm-endpoint')?.value?.trim() || appSettings.llmEndpoint;
+      const model = document.getElementById('setting-llm-model')?.value?.trim() || appSettings.llmModel || 'qwen2.5-coder:7b';
+      const apiKey = document.getElementById('setting-llm-apikey')?.value?.trim() || appSettings.llmApiKey || '';
+
+      if (!endpoint) {
+        if (statusEl) statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span><span class="text-red-400">Endpoint URL fehlt!</span>';
+        return;
+      }
+
+      if (statusEl) {
+        statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-yellow-400 animate-ping inline-block"></span><span class="text-yellow-400">Verbindung wird getestet...</span>';
+      }
+      if (btn) btn.disabled = true;
+
+      try {
+        // First try direct client-side test call
+        const directResult = await executeUniversalLLMCall({
+          prompt: "Antworte exakt mit 'CORENOW_OK'",
+          systemPrompt: "You are a test ping responder.",
+          requireJson: false,
+          overrideProvider: provider,
+          overrideEndpoint: endpoint,
+          overrideModel: model,
+          overrideApiKey: apiKey,
+          timeout: 7000
+        });
+
+        if (statusEl) {
+          statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span><span class="text-emerald-400 font-bold">Verbindung erfolgreich! (${provider.toUpperCase()})</span>`;
+        }
+        showToast(`LLM-Verbindung erfolgreich (${provider})`, 'success');
+      } catch (errDirect) {
+        // Fallback: try via Backend proxy test endpoint
+        try {
+          const resp = await fetch('/api/llm/test-connection', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              provider: provider,
+              endpoint_url: endpoint,
+              model: model,
+              api_key: apiKey
+            })
+          });
+          const data = await resp.json();
+          if (resp.ok && data.success) {
+            if (statusEl) {
+              statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span><span class="text-emerald-400 font-bold">Verbunden via Analyzer-Server!</span>`;
+            }
+            showToast(`LLM-Verbindung erfolgreich via Backend`, 'success');
+          } else {
+            throw new Error(data.message || data.error || `HTTP ${resp.status}`);
+          }
+        } catch (errBackend) {
+          if (statusEl) {
+            statusEl.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500 inline-block"></span><span class="text-red-400" title="${errDirect.message}">Fehler: ${errDirect.message || 'Verbindung fehlgeschlagen'}</span>`;
+          }
+          showToast(`LLM-Verbindungsfehler: ${errDirect.message}`, 'error');
+        }
+      } finally {
+        if (btn) btn.disabled = false;
+        if (window.lucide) lucide.createIcons();
+      }
+    }
+
+    /**
+     * Universal LLM Client Dispatcher supporting:
+     * - Ollama Native: POST /api/generate & /api/chat -> parse res.response or res.message.content
+     * - llama.cpp Server Native: POST /completion -> parse res.content
+     * - OpenAI-compatible (LM Studio, vLLM): POST /v1/chat/completions -> parse res.choices[0].message.content
+     */
+    async function executeUniversalLLMCall(options) {
+      const provider = (options.overrideProvider || appSettings.llmProvider || 'ollama').toLowerCase();
+      let endpoint = (options.overrideEndpoint || appSettings.llmEndpoint || '').trim();
+      const model = options.overrideModel || appSettings.llmModel || 'qwen2.5-coder:7b';
+      const apiKey = options.overrideApiKey !== undefined ? options.overrideApiKey : (appSettings.llmApiKey || '');
+      const prompt = options.prompt || '';
+      const systemPrompt = options.systemPrompt || 'Du bist ein Senior Software Architekt.';
+      const requireJson = !!options.requireJson;
+      const timeoutMs = options.timeout || 15000;
+
+      if (!endpoint) {
+        if (provider === 'llamacpp') endpoint = 'http://localhost:8080/completion';
+        else if (provider === 'openai') endpoint = 'http://localhost:1234/v1/chat/completions';
+        else endpoint = 'http://localhost:11434/api/generate';
+      }
+
+      let payload = {};
+      const headers = { 'Content-Type': 'application/json' };
+      if (apiKey) {
+        headers['Authorization'] = `Bearer ${apiKey}`;
+      }
+
+      // 1. llama.cpp Server Native (/completion)
+      if (provider === 'llamacpp' || endpoint.endsWith('/completion')) {
+        const fullPrompt = `System: ${systemPrompt}\nUser: ${prompt}\nAssistant:`;
+        payload = {
+          prompt: fullPrompt,
+          n_predict: 1024,
+          temperature: 0.2,
+          stream: false
+        };
+        if (requireJson) {
+          payload.json_schema = { type: "object" };
+        }
+      }
+      // 2. Ollama Native API (/api/generate or /api/chat)
+      else if (provider === 'ollama' && (endpoint.includes(':11434/api') || endpoint.endsWith('/api/generate') || endpoint.endsWith('/api/chat'))) {
+        if (endpoint.endsWith('/api/chat')) {
+          payload = {
+            model: model,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: prompt }
+            ],
+            stream: false,
+            options: { temperature: 0.2 }
+          };
+          if (requireJson) payload.format = 'json';
+        } else {
+          // /api/generate
+          if (!endpoint.endsWith('/api/generate')) {
+            endpoint = endpoint.replace(/\/+$/, '') + '/api/generate';
+          }
+          payload = {
+            model: model,
+            prompt: prompt,
+            system: systemPrompt,
+            stream: false,
+            options: { temperature: 0.2 }
+          };
+          if (requireJson) payload.format = 'json';
+        }
+      }
+      // 3. OpenAI-Compatible / LM Studio / vLLM (/v1/chat/completions)
+      else {
+        payload = {
+          model: model,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: prompt }
+          ],
+          temperature: 0.2,
+          stream: false
+        };
+        if (requireJson) {
+          payload.response_format = { type: 'json_object' };
+        }
+      }
+
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      try {
+        const resp = await fetch(endpoint, {
+          method: 'POST',
+          headers: headers,
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+        clearTimeout(timer);
+
+        if (!resp.ok) {
+          throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
+        }
+
+        const data = await resp.json();
+
+        // Standardized content extraction
+        // 1. llama.cpp Server: data.content
+        if (typeof data.content === 'string') {
+          return data.content.trim();
+        }
+        // 2. Ollama /api/generate: data.response
+        if (typeof data.response === 'string') {
+          return data.response.trim();
+        }
+        // 3. Ollama /api/chat: data.message.content
+        if (data.message && typeof data.message.content === 'string') {
+          return data.message.content.trim();
+        }
+        // 4. OpenAI compatible: data.choices[0].message.content
+        if (Array.isArray(data.choices) && data.choices.length > 0) {
+          const c = data.choices[0];
+          if (c.message && typeof c.message.content === 'string') {
+            return c.message.content.trim();
+          }
+          if (typeof c.text === 'string') {
+            return c.text.trim();
+          }
+        }
+
+        return JSON.stringify(data);
+      } catch (err) {
+        clearTimeout(timer);
+        throw err;
       }
     }
 
@@ -378,8 +633,15 @@
       const modal = document.getElementById('settingsModal');
       if (!modal) return;
       
+      const provEl = document.getElementById('setting-llm-provider');
+      if (provEl) provEl.value = appSettings.llmProvider || DEFAULT_SETTINGS.llmProvider;
+      
       document.getElementById('setting-llm-endpoint').value = appSettings.llmEndpoint || DEFAULT_SETTINGS.llmEndpoint;
       document.getElementById('setting-llm-model').value = appSettings.llmModel || DEFAULT_SETTINGS.llmModel;
+      
+      const apiKeyEl = document.getElementById('setting-llm-apikey');
+      if (apiKeyEl) apiKeyEl.value = appSettings.llmApiKey || '';
+      
       document.getElementById('setting-llm-batch').value = appSettings.llmBatchSize || DEFAULT_SETTINGS.llmBatchSize;
       document.getElementById('setting-ignore-paths').value = appSettings.ignorePaths || DEFAULT_SETTINGS.ignorePaths;
       
@@ -389,11 +651,19 @@
       
       document.getElementById('setting-exclude-docs').checked = appSettings.excludeDocs !== false;
       
+      onLLMProviderChanged();
+      
+      const statusEl = document.getElementById('llmConnectionStatus');
+      if (statusEl) {
+        statusEl.innerHTML = '<span class="w-2 h-2 rounded-full bg-zinc-600 inline-block"></span><span>Noch nicht getestet</span>';
+      }
+      
       renderThemePicker();
       updateSettingsThemeModeUI(appSettings.themeMode || (document.documentElement.classList.contains('light') ? 'light' : 'dark'));
       updateCityCustomTextureUI();
       initCityCustomTextureDragAndDrop();
       modal.classList.remove('hidden');
+      if (window.lucide) lucide.createIcons();
     }
 
     function closeSettingsModal() {
@@ -409,8 +679,15 @@
     }
 
     function saveAndApplySettings() {
+      const provEl = document.getElementById('setting-llm-provider');
+      if (provEl) appSettings.llmProvider = provEl.value || DEFAULT_SETTINGS.llmProvider;
+      
       appSettings.llmEndpoint = document.getElementById('setting-llm-endpoint').value.trim() || DEFAULT_SETTINGS.llmEndpoint;
       appSettings.llmModel = document.getElementById('setting-llm-model').value.trim() || DEFAULT_SETTINGS.llmModel;
+      
+      const apiKeyEl = document.getElementById('setting-llm-apikey');
+      if (apiKeyEl) appSettings.llmApiKey = apiKeyEl.value.trim();
+      
       appSettings.llmBatchSize = parseInt(document.getElementById('setting-llm-batch').value, 10) || DEFAULT_SETTINGS.llmBatchSize;
       appSettings.ignorePaths = document.getElementById('setting-ignore-paths').value.trim() || DEFAULT_SETTINGS.ignorePaths;
       appSettings.complexityThreshold = parseInt(document.getElementById('setting-complexity-threshold').value, 10) || DEFAULT_SETTINGS.complexityThreshold;
@@ -3227,9 +3504,6 @@
 
     async function callLocalLLMBatchWithRetries(batch, projectName) {
       const maxRetries = 3;
-      const endpoint = appSettings.llmEndpoint || "http://127.0.0.1:8084/v1/chat/completions";
-      const model = appSettings.llmModel || "local-model";
-
       const prompt = `Analysiere dieses Codebase-Modul:\nProjekt: ${projectName}\nModul: ${batch.module_name}\nDateien: ${batch.files.join(', ')}\nLOC: ${batch.total_loc}\nIntent-Rollen: ${batch.intent_roles.join(', ')}\n\nAntworte zwingend in reinem JSON mit Schema:\n{"module_summary": "...", "intent_critique": "...", "risks": ["..."], "quality_score": 90}`;
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -3241,23 +3515,13 @@
         if (aiBatchState.aborted) break;
 
         try {
-          const resp = await fetch(endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: model,
-              messages: [
-                { role: "system", content: "Du bist ein Senior Software Architekt. Antworte ausschließlich mit reinem, validem JSON." },
-                { role: "user", content: prompt }
-              ],
-              temperature: 0.2,
-              response_format: { type: "json_object" }
-            })
+          const contentStr = await executeUniversalLLMCall({
+            prompt: prompt,
+            systemPrompt: "Du bist ein Senior Software Architekt. Antworte ausschließlich mit reinem, validem JSON.",
+            requireJson: true,
+            timeout: 15000
           });
 
-          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-          const res = await resp.json();
-          const contentStr = res.choices?.[0]?.message?.content || "";
           try {
             return JSON.parse(contentStr);
           } catch (e) {
@@ -3511,37 +3775,23 @@
       const modal = document.getElementById('aiCritiqueModal');
       const content = document.getElementById('aiCritiqueContent');
       modal.classList.remove('hidden');
-      content.innerText = `Connecting to CORENOW AI Engine (${appSettings.llmEndpoint})...\nModel: ${appSettings.llmModel}`;
+      content.innerText = `Connecting to CORENOW AI Engine (${appSettings.llmEndpoint})...\nProvider: ${appSettings.llmProvider || 'ollama'} | Model: ${appSettings.llmModel}`;
 
       try {
-        const payload = {
-          model: appSettings.llmModel || "local-model",
-          messages: [
-            {
-              role: "system",
-              content: "You are CORENOW AI Codebase Architect. Analyze the provided codebase architectural graph, health score, APIs, and complexity."
-            },
-            {
-              role: "user",
-              content: JSON.stringify({
-                project: currentData.project_name,
-                summary: currentData.summary,
-                risk_radar: currentData.risk_radar,
-                api_catalog: (currentData.api_catalog || []).slice(0, appSettings.llmBatchSize || 30)
-              })
-            }
-          ]
-        };
+        const critiquePrompt = `Analyze the provided codebase architectural graph, health score, APIs, and complexity:\n` + JSON.stringify({
+          project: currentData.project_name,
+          summary: currentData.summary,
+          risk_radar: currentData.risk_radar,
+          api_catalog: (currentData.api_catalog || []).slice(0, appSettings.llmBatchSize || 30)
+        }, null, 2);
 
-        const resp = await fetch(appSettings.llmEndpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+        const analysisText = await executeUniversalLLMCall({
+          prompt: critiquePrompt,
+          systemPrompt: "You are CORENOW AI Codebase Architect. Analyze the provided architecture and return an insightful architectural summary with 3 strengths, 3 risks, and recommendations.",
+          requireJson: false,
+          timeout: 20000
         });
 
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}: ${resp.statusText}`);
-        const res = await resp.json();
-        const analysisText = res.choices?.[0]?.message?.content || res.analysis || JSON.stringify(res, null, 2);
         content.innerText = analysisText;
       } catch (e) {
         content.innerText = `CORENOW AI Engine (${appSettings.llmEndpoint}) Offline / Fallback Mode:\n\n- Architecture: Clean modular layered architecture with clear component boundaries.\n- Complexity: Risk radar monitored with threshold ${appSettings.complexityThreshold}.\n- Strengths: High cohesion in IPC communication routines & bounded memory.\n- Recommendations: Ensure robust error mapping on command boundaries and expand integration tests.\n\n(Network Note: ${e.message})`;
@@ -3605,8 +3855,13 @@ window.runGlobalAIScanHUDExecution = runGlobalAIScanHUDExecution;
 window.togglePauseAIScanHUD = togglePauseAIScanHUD;
 window.cancelAIScanHUD = cancelAIScanHUD;
 window.retryAIScanHUD = retryAIScanHUD;
+window.onLLMProviderChanged = onLLMProviderChanged;
+window.setLLMPreset = setLLMPreset;
+window.testLLMConnection = testLLMConnection;
+window.executeUniversalLLMCall = executeUniversalLLMCall;
 window.exportAnalysisResultsJSON = exportAnalysisResultsJSON;
 window.handleImportJsonFile = handleImportJsonFile;
 window.importAnalysisResultsJSON = importAnalysisResultsJSON;
 window.openAIModal = openAIModal;
 window.closeAIModal = closeAIModal;
+window.triggerAICritique = triggerAICritique;

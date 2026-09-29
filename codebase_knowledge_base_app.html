@@ -1322,48 +1322,88 @@
       <!-- Modal Body (Scrollable) -->
       <div class="py-5 overflow-y-auto space-y-6 flex-1 pr-1.5">
         
-        <!-- Section 1: LLM Configuration & BYO-Ollama -->
+        <!-- Section 1: LLM Configuration & Universal Provider Engine -->
         <div class="space-y-3">
           <div class="flex items-center justify-between text-xs font-bold text-zinc-200 uppercase tracking-wider">
             <div class="flex items-center space-x-2">
               <i data-lucide="cpu" class="w-4 h-4 text-brand-orange"></i>
-              <span>1. LLM-Konfiguration & BYO-Ollama</span>
+              <span>1. Universelle LLM-Konfiguration & Engine</span>
             </div>
-            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#63B22F]/20 text-[#63B22F] border border-[#63B22F]/40 font-bold">Ollama / LocalAI</span>
+            <span id="setting-llm-provider-badge" class="text-[10px] font-mono px-2 py-0.5 rounded bg-[#63B22F]/20 text-[#63B22F] border border-[#63B22F]/40 font-bold">Ollama Native / API</span>
           </div>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 bg-brand-dark/70 p-4 rounded-xl border border-brand-border/70">
             <!-- Quick Presets -->
-            <div class="md:col-span-2 flex items-center space-x-2 pb-1 border-b border-brand-border/60">
-              <span class="text-[10px] font-mono uppercase text-zinc-400 font-bold">Quick Presets:</span>
-              <button type="button" onclick="setLLMPreset('local-ollama')" class="px-2 py-0.5 rounded bg-brand-card hover:bg-brand-dark border border-brand-border hover:border-brand-orange text-[10px] font-mono text-zinc-300 hover:text-white transition">
-                🦙 Lokales Ollama (Port 11434)
+            <div class="md:col-span-2 flex flex-wrap items-center gap-1.5 pb-2 border-b border-brand-border/60">
+              <span class="text-[10px] font-mono uppercase text-zinc-400 font-bold mr-1">Quick Presets:</span>
+              <button type="button" onclick="setLLMPreset('local-ollama')" class="px-2 py-1 rounded bg-brand-card hover:bg-brand-dark border border-brand-border hover:border-brand-orange text-[10px] font-mono text-zinc-300 hover:text-white transition flex items-center gap-1">
+                🦙 Ollama (11434)
               </button>
-              <button type="button" onclick="setLLMPreset('docker-ollama')" class="px-2 py-0.5 rounded bg-brand-card hover:bg-brand-dark border border-brand-border hover:border-brand-orange text-[10px] font-mono text-zinc-300 hover:text-white transition">
-                🐳 Docker Ollama
+              <button type="button" onclick="setLLMPreset('llamacpp-server')" class="px-2 py-1 rounded bg-brand-card hover:bg-brand-dark border border-brand-border hover:border-brand-orange text-[10px] font-mono text-zinc-300 hover:text-white transition flex items-center gap-1">
+                ⚡ llama.cpp Server (8080)
               </button>
-              <button type="button" onclick="setLLMPreset('backend-proxy')" class="px-2 py-0.5 rounded bg-brand-card hover:bg-brand-dark border border-brand-border hover:border-brand-orange text-[10px] font-mono text-zinc-300 hover:text-white transition">
-                ⚡ Analyzer Proxy (Port 8084)
+              <button type="button" onclick="setLLMPreset('openai-lmstudio')" class="px-2 py-1 rounded bg-brand-card hover:bg-brand-dark border border-brand-border hover:border-brand-orange text-[10px] font-mono text-zinc-300 hover:text-white transition flex items-center gap-1">
+                🌐 LM Studio / vLLM (1234)
+              </button>
+              <button type="button" onclick="setLLMPreset('backend-proxy')" class="px-2 py-1 rounded bg-brand-card hover:bg-brand-dark border border-brand-border hover:border-brand-orange text-[10px] font-mono text-zinc-300 hover:text-white transition flex items-center gap-1">
+                🛡️ Analyzer Server (8084)
               </button>
             </div>
 
-            <div class="md:col-span-2">
+            <!-- Provider Selection -->
+            <div>
               <label class="block text-[11px] font-mono font-medium text-zinc-300 mb-1">
-                Endpoint-URL (Ollama / OpenAI-kompatibel)
+                LLM Provider / Engine
               </label>
-              <input type="text" id="setting-llm-endpoint" class="w-full bg-brand-card border border-brand-border rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-brand-orange transition" placeholder="http://localhost:11434/v1/chat/completions" />
-              <p class="text-[10px] text-zinc-500 mt-1">Konfiguriere deinen lokalen Ollama Server (z.B. <code>http://localhost:11434/v1/chat/completions</code> oder Server-Backend).</p>
+              <select id="setting-llm-provider" onchange="onLLMProviderChanged()" class="w-full bg-brand-card border border-brand-border rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-brand-orange transition">
+                <option value="ollama">🦙 Ollama (Native /api/generate & /api/chat)</option>
+                <option value="llamacpp">⚡ llama.cpp Server (Native /completion)</option>
+                <option value="openai">🌐 OpenAI-kompatibel / LM Studio / vLLM (/v1/chat/completions)</option>
+              </select>
             </div>
+
+            <!-- Model Name -->
             <div>
               <label class="block text-[11px] font-mono font-medium text-zinc-300 mb-1">
                 Modell-Name / Alias
               </label>
               <input type="text" id="setting-llm-model" class="w-full bg-brand-card border border-brand-border rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-brand-orange transition" placeholder="qwen2.5-coder:7b" />
             </div>
+
+            <!-- Endpoint URL -->
+            <div class="md:col-span-2">
+              <label class="block text-[11px] font-mono font-medium text-zinc-300 mb-1">
+                Endpoint-URL
+              </label>
+              <input type="text" id="setting-llm-endpoint" class="w-full bg-brand-card border border-brand-border rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-brand-orange transition" placeholder="http://localhost:11434/api/generate" />
+              <p id="setting-llm-endpoint-help" class="text-[10px] text-zinc-500 mt-1">Ollama Native: <code>http://localhost:11434/api/generate</code> | llama.cpp: <code>http://localhost:8080/completion</code> | OpenAI: <code>http://localhost:1234/v1/chat/completions</code></p>
+            </div>
+
+            <!-- API Key (Optional) -->
+            <div>
+              <label class="block text-[11px] font-mono font-medium text-zinc-300 mb-1">
+                API-Key / Bearer Token <span class="text-zinc-500 font-normal">(optional)</span>
+              </label>
+              <input type="password" id="setting-llm-apikey" class="w-full bg-brand-card border border-brand-border rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-brand-orange transition" placeholder="sk-... (falls erforderlich)" />
+            </div>
+
+            <!-- Batch Size -->
             <div>
               <label class="block text-[11px] font-mono font-medium text-zinc-300 mb-1">
                 Batch-/Chunk-Größe (Dateien)
               </label>
               <input type="number" id="setting-llm-batch" min="5" max="200" step="5" class="w-full bg-brand-card border border-brand-border rounded-lg px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-brand-orange transition" placeholder="30" />
+            </div>
+
+            <!-- Test Connection Button & Status Box -->
+            <div class="md:col-span-2 pt-2 border-t border-brand-border/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+              <button type="button" id="btnTestLLMConnection" onclick="testLLMConnection()" class="px-3 py-1.5 rounded-lg bg-brand-card hover:bg-brand-dark border border-brand-border hover:border-brand-orange text-xs font-mono text-zinc-200 hover:text-white font-bold transition flex items-center space-x-1.5 shadow-sm">
+                <i data-lucide="activity" class="w-3.5 h-3.5 text-brand-orange"></i>
+                <span>Verbindung testen</span>
+              </button>
+              <div id="llmConnectionStatus" class="text-[11px] font-mono text-zinc-400 flex items-center space-x-1.5">
+                <span class="w-2 h-2 rounded-full bg-zinc-600 inline-block"></span>
+                <span>Noch nicht getestet</span>
+              </div>
             </div>
           </div>
         </div>
