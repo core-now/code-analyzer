@@ -213,7 +213,13 @@ def decode_jwt_token(token: str) -> Optional[Dict[str, Any]]:
 
 def is_github_oauth_configured() -> bool:
     """Returns True if GitHub OAuth client ID and secret are configured."""
-    return bool(os.environ.get("GITHUB_CLIENT_ID", "").strip() and os.environ.get("GITHUB_CLIENT_SECRET", "").strip())
+    client_id = os.environ.get("GITHUB_CLIENT_ID", "").strip()
+    client_secret = os.environ.get("GITHUB_CLIENT_SECRET", "").strip()
+    if not (client_id and client_secret):
+        load_environment_variables()
+        client_id = os.environ.get("GITHUB_CLIENT_ID", "").strip()
+        client_secret = os.environ.get("GITHUB_CLIENT_SECRET", "").strip()
+    return bool(client_id and client_secret)
 
 
 def exchange_github_code_for_token(code: str, redirect_uri: Optional[str] = None) -> Optional[str]:

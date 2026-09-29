@@ -1407,13 +1407,13 @@ class KnowledgeBaseServer(BaseHTTPRequestHandler):
 
         # Auth: GitHub OAuth Initiate
         if self.path.startswith("/api/auth/github") and not self.path.startswith("/api/auth/github/callback"):
-            client_id = os.environ.get("GITHUB_CLIENT_ID", "").strip()
-            if not client_id:
+            if not is_github_oauth_configured():
                 self._set_headers(400, "application/json")
                 self.wfile.write(json.dumps({
                     "error": "GitHub SSO ist nicht konfiguriert. Bitte hinterlege GITHUB_CLIENT_ID und GITHUB_CLIENT_SECRET in der .env Datei."
                 }).encode("utf-8"))
                 return
+            client_id = os.environ.get("GITHUB_CLIENT_ID", "").strip()
 
             host = self.headers.get("Host", f"localhost:{DEFAULT_PORT}")
             proto = "https" if self.headers.get("X-Forwarded-Proto") == "https" else "http"
