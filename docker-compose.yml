@@ -1,6 +1,6 @@
 services:
   # ============================================================================
-  # 1. Code-Analyzer Application Server & 3D Knowledge Base UI
+  # 1. Code-Analyzer Application Server & 3D Knowledge Base UI (Default Service)
   # ============================================================================
   code-analyzer:
     build:
@@ -12,8 +12,8 @@ services:
       - "8084:8084"
     environment:
       - PORT=8084
-      - LLM_URL=http://ollama:11434/v1/chat/completions
-      - LLM_MODEL=qwen2.5-coder:7b
+      - LLM_URL=${LLM_URL:-http://localhost:11434/v1/chat/completions}
+      - LLM_MODEL=${LLM_MODEL:-qwen2.5-coder:7b}
       - CACHE_FILE=/workspace/.codebase_cache.json
       - RESULTS_FILE=/workspace/.codebase_results.json
       # Database Configuration (MSSQL / SQLite fallback)
@@ -27,19 +27,19 @@ services:
     volumes:
       # Mount target codebase directory to /workspace
       - .:/workspace
-    depends_on:
-      ollama:
-        condition: service_started
     networks:
       - code-analyzer-net
 
   # ============================================================================
-  # 2. Ollama Local LLM Engine (qwen2.5-coder:7b / deepseek-coder)
+  # 2. Optional Local Ollama Engine (Profile: with-ollama / local-gpu)
   # ============================================================================
   ollama:
     image: ollama/ollama:latest
     container_name: code-analyzer-ollama
     restart: unless-stopped
+    profiles:
+      - with-ollama
+      - local-gpu
     ports:
       - "11434:11434"
     volumes:
@@ -58,12 +58,15 @@ services:
     #           capabilities: [gpu]
 
   # ============================================================================
-  # 3. Model Preloader / Initializer (Automatically pulls qwen2.5-coder:7b)
+  # 3. Optional Model Preloader (Profile: with-ollama / local-gpu)
   # ============================================================================
   ollama-model-init:
     image: curlimages/curl:latest
     container_name: code-analyzer-model-init
     restart: "no"
+    profiles:
+      - with-ollama
+      - local-gpu
     depends_on:
       - ollama
     networks:

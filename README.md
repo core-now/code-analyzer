@@ -29,9 +29,9 @@ Ein ganzheitliches, KI-gestütztes Tool zur statischen Code-Analyse, 3D-Metropol
 
 ## 🚀 Quickstart mit Docker & Docker Compose
 
-Mit Docker Compose startest du die gesamte Plattform (Code-Analyzer Web-App + Multi-User DB Layer + Ollama LLM + Automatischer Model-Download) mit einem einzigen Befehl.
+Der Standard-Container ist **ultra-leichtgewichtig** (enthält nur den Webserver + DB-Layer, keine schweren KI-Modelle auf dem VPS). Ollama läuft standardmäßig client-seitig bei den Usern zu Hause (**BYO-Ollama**).
 
-### 1. Starten
+### 1. Standard-Start (Leichtgewichtiger Webserver & UI)
 
 ```bash
 docker compose up -d
@@ -40,11 +40,16 @@ docker compose up -d
 Nach dem Start:
 - **Web-Interface**: [http://localhost:8084/app](http://localhost:8084/app)
 - **API Status**: [http://localhost:8084/api/status](http://localhost:8084/api/status)
-- **Ollama Engine**: [http://localhost:11434](http://localhost:11434)
 
-> Beim ersten Start lädt der `ollama-model-init`-Container automatisch das empfohlene 7B-Coder-Modell (`qwen2.5-coder:7b`) herunter.
+### 2. Optional: Lokales Ollama & 7B-Modell mit Docker starten
 
-### 2. Stoppen
+Falls du Ollama dennoch direkt im Docker-Verbund auf einer lokalen Workstation mit GPU hosten möchtest:
+
+```bash
+docker compose --profile with-ollama up -d
+```
+
+### 3. Stoppen
 
 ```bash
 docker compose down
