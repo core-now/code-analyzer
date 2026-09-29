@@ -3,7 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>CORENOW Code Intelligence | Codebase Knowledge Base</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <title>CORENOW Code Intelligence | Codebase Knowledge Base v2.4.1</title>
   
     <!-- Google Fonts: Plus Jakarta Sans, Inter, JetBrains Mono, Fira Code -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -1039,6 +1042,7 @@
         <div class="flex items-center space-x-1.5">
           <span class="font-extrabold text-white tracking-wider text-sm">CORENOW</span>
           <span class="text-xs text-brand-orange font-mono font-bold tracking-wide">CODE INTELLIGENCE</span>
+          <span class="text-[9px] font-mono px-1.5 py-0.5 rounded bg-brand-orange/15 text-brand-orange border border-brand-orange/30 font-semibold">v2.4.1 Zero-Recursion</span>
         </div>
         <div class="text-[10px] text-zinc-400 font-mono leading-none">Codebase Knowledge Base - powered by CORENOW</div>
       </div>
@@ -2245,7 +2249,7 @@
           <div>
             <h3 class="font-bold text-sm tracking-wide text-white flex items-center space-x-2">
               <span>CORENOW SETTINGS & CONFIG</span>
-              <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-brand-orange/10 text-brand-orange border border-brand-orange/30">v2.4</span>
+              <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-brand-orange/10 text-brand-orange border border-brand-orange/30">v2.4.1 Zero-Recursion</span>
             </h3>
             <p class="text-[11px] text-zinc-400 font-mono">LLM-Integration, Code-Scanner Filterregeln & Design-Themes</p>
           </div>
@@ -2562,17 +2566,31 @@
 
   <script>
     // --- Global Analysis Ingestion & Early Lifecycle Hooks ---
-    window.loadAnalysisData = function(data) {
-      if (typeof ingestAnalysisData === 'function' && ingestAnalysisData !== window.loadAnalysisData) {
-        return ingestAnalysisData(data);
+    window.__handleIncomingData = function(data) {
+      if (typeof window._internalIngestAnalysisData === 'function') {
+        return window._internalIngestAnalysisData(data);
       }
       window.__pendingAnalysisData = data;
+      return true;
+    };
+    window.loadAnalysisData = function(data) {
+      return window.__handleIncomingData(data);
     };
     window.ingestAnalysisData = function(data) {
-      if (typeof ingestAnalysisData === 'function' && ingestAnalysisData !== window.ingestAnalysisData) {
-        return ingestAnalysisData(data);
-      }
-      return window.loadAnalysisData(data);
+      return window.__handleIncomingData(data);
+    };
+    window.safeJsonStringify = function(obj, space = 2) {
+      const seen = new WeakSet();
+      return JSON.stringify(obj, (key, value) => {
+        if (key === 'parent' || key === '__parent') return undefined;
+        if (typeof value === 'object' && value !== null) {
+          if (seen.has(value)) {
+            return undefined; // Break cycle
+          }
+          seen.add(value);
+        }
+        return value;
+      }, space);
     };
 
     // --- Application Settings & Persistence ---
@@ -4913,55 +4931,84 @@
         });
       }
 
-      // Build Recursive N-Depth Mindmap Hierarchy
+      // Build N-Depth Mindmap Hierarchy (Iterative & Cycle-Safe)
       function convertFileTreeToMindmap(treeNode, currentPath = '') {
-        const result = [];
-        if (!treeNode || !treeNode.children) return result;
-
-        const keys = Object.keys(treeNode.children).sort((a, b) => {
-          const itemA = treeNode.children[a];
-          const itemB = treeNode.children[b];
-          if (itemA.type !== itemB.type) {
-            return itemA.type === 'directory' ? -1 : 1; // directories first
+        if (!treeNode || !treeNode.children) return [];
+        const rootResult = [];
+        const visited = new Set();
+        
+        const stack = [{
+          node: treeNode,
+          currentPath: currentPath,
+          targetArray: rootResult
+        }];
+        
+        while (stack.length > 0) {
+          const current = stack[stack.length - 1];
+          
+          if (!current.itemsToProcess) {
+            if (visited.has(current.node)) {
+              stack.pop();
+              continue;
+            }
+            visited.add(current.node);
+            
+            const keys = Object.keys(current.node.children || {}).sort((a, b) => {
+              const itemA = current.node.children[a];
+              const itemB = current.node.children[b];
+              if (itemA.type !== itemB.type) {
+                return itemA.type === 'directory' ? -1 : 1;
+              }
+              return a.localeCompare(b);
+            });
+            
+            current.itemsToProcess = keys.map(k => current.node.children[k]);
+            current.idx = 0;
           }
-          return a.localeCompare(b);
-        });
-
-        for (const key of keys) {
-          const item = treeNode.children[key];
-          const fullPath = currentPath ? `${currentPath}/${item.name}` : item.name;
-
-          if (item.type === 'directory') {
-            const subChildren = convertFileTreeToMindmap(item, fullPath);
-            result.push({
-              id: `dir_${fullPath}`,
-              name: item.name,
-              path: fullPath,
-              category: "Directory",
-              nodeType: "layer",
-              children: subChildren
-            });
+          
+          if (current.idx < current.itemsToProcess.length) {
+            const item = current.itemsToProcess[current.idx++];
+            const fullPath = current.currentPath ? `${current.currentPath}/${item.name}` : item.name;
+            
+            if (item.type === 'directory') {
+              const dirObj = {
+                id: `dir_${fullPath}`,
+                name: item.name,
+                path: fullPath,
+                category: "Directory",
+                nodeType: "layer",
+                children: []
+              };
+              current.targetArray.push(dirObj);
+              stack.push({
+                node: item,
+                currentPath: fullPath,
+                targetArray: dirObj.children
+              });
+            } else {
+              const syms = (item.symbols || []).map(s => ({
+                id: `${item.path}#${s.name}`,
+                name: s.name,
+                path: item.path,
+                category: s.type,
+                type: s.type,
+                line: s.line
+              }));
+              current.targetArray.push({
+                id: item.path,
+                name: item.name,
+                path: item.path,
+                category: "Component",
+                nodeType: "file",
+                children: syms
+              });
+            }
           } else {
-            const syms = (item.symbols || []).map(s => ({
-              id: `${item.path}#${s.name}`,
-              name: s.name,
-              path: item.path,
-              category: s.type,
-              type: s.type,
-              line: s.line
-            }));
-
-            result.push({
-              id: item.path,
-              name: item.name,
-              path: item.path,
-              category: "Component",
-              nodeType: "file",
-              children: syms
-            });
+            stack.pop();
           }
         }
-        return result;
+        
+        return rootResult;
       }
 
       const mindmapChildren = convertFileTreeToMindmap(fileTree);
@@ -5083,6 +5130,7 @@
     }
 
     // Expose global alias for backward compatibility and external imports
+    window._internalIngestAnalysisData = ingestAnalysisData;
     window.loadAnalysisData = ingestAnalysisData;
     window.ingestAnalysisData = ingestAnalysisData;
     if (window.__pendingAnalysisData) {
@@ -5417,58 +5465,104 @@
 
       let folderCounter = 0;
 
-      function buildTreeHTML(node, depth = 0, currentPath = '') {
-        let html = '';
-        if (!node || !node.children) return '';
-        const keys = Object.keys(node.children).sort((a, b) => {
-          const itemA = node.children[a];
-          const itemB = node.children[b];
-          if (itemA.type !== itemB.type) {
-            return itemA.type === 'directory' ? -1 : 1;
-          }
-          return a.localeCompare(b);
-        });
-
-        for (const key of keys) {
-          const item = node.children[key];
-          const padding = depth * 14 + 6;
-          const nodePath = currentPath ? `${currentPath}/${item.name}` : item.name;
-
-          if (item.type === 'directory') {
-            const folderId = `folder-node-${++folderCounter}`;
-            if (!folderExpandedState.has(folderId)) {
-              folderExpandedState.set(folderId, false); // Folded / collapsed by default
+      function buildTreeHTML(rootNode) {
+        if (!rootNode || !rootNode.children) return '';
+        const visited = new Set();
+        
+        const stack = [{
+          node: rootNode,
+          depth: 0,
+          currentPath: '',
+          chunks: []
+        }];
+        
+        while (stack.length > 0) {
+          const current = stack[stack.length - 1];
+          
+          if (!current.itemsToProcess) {
+            if (visited.has(current.node)) {
+              stack.pop();
+              continue;
             }
-            const isExpanded = folderExpandedState.get(folderId);
+            visited.add(current.node);
+            
+            const keys = Object.keys(current.node.children || {}).sort((a, b) => {
+              const itemA = current.node.children[a];
+              const itemB = current.node.children[b];
+              if (itemA.type !== itemB.type) {
+                return itemA.type === 'directory' ? -1 : 1;
+              }
+              return a.localeCompare(b);
+            });
+            
+            current.itemsToProcess = keys.map(k => current.node.children[k]);
+            current.idx = 0;
+          }
+          
+          if (current.idx < current.itemsToProcess.length) {
+            const item = current.itemsToProcess[current.idx++];
+            const padding = current.depth * 14 + 6;
+            const nodePath = current.currentPath ? `${current.currentPath}/${item.name}` : item.name;
+            
+            if (item.type === 'directory') {
+              const folderId = `folder-node-${++folderCounter}`;
+              if (!folderExpandedState.has(folderId)) {
+                folderExpandedState.set(folderId, false); // Folded / collapsed by default
+              }
+              const isExpanded = folderExpandedState.get(folderId);
+              
+              const openHtml = `
+                <div class="folder-group mb-0.5">
+                  <div onclick="toggleFolder('${folderId}')" data-folder-id="${folderId}" class="folder-row flex items-center space-x-1.5 py-1 px-2 hover:bg-white/5 rounded cursor-pointer text-zinc-300 hover:text-white font-medium transition select-none group" style="padding-left: ${padding}px">
+                    <span class="chevron-icon text-[10px] text-zinc-500 group-hover:text-brand-orange w-3.5 flex items-center justify-center transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}">▶</span>
+                    <span class="folder-icon text-xs">${isExpanded ? '📂' : '📁'}</span>
+                    <span class="truncate text-[11px]">${item.name}</span>
+                  </div>
+                  <div id="${folderId}-children" class="folder-children ${isExpanded ? '' : 'hidden'}">`;
+                  
+              const closeHtml = `
+                  </div>
+                </div>
+              `;
+              
+              current.chunks.push(openHtml);
+              
+              const childFrame = {
+                node: item,
+                depth: current.depth + 1,
+                currentPath: nodePath,
+                chunks: [],
+                parentFrame: current,
+                closeHtml: closeHtml
+              };
+              stack.push(childFrame);
+            } else {
+              const isCurrent = activeFile === item.path || (activeFile && (activeFile === nodePath || activeFile.endsWith('/' + item.name)));
+              const iconInfo = getFileIconInfo(item.name);
+              const activeClasses = isCurrent 
+                ? 'bg-white/10 text-brand-orange font-semibold border-l-2 border-brand-orange shadow-sm' 
+                : 'text-zinc-400 hover:text-white hover:bg-white/5 border-l-2 border-transparent';
 
-            html += `
-              <div class="folder-group mb-0.5">
-                <div onclick="toggleFolder('${folderId}')" data-folder-id="${folderId}" class="folder-row flex items-center space-x-1.5 py-1 px-2 hover:bg-white/5 rounded cursor-pointer text-zinc-300 hover:text-white font-medium transition select-none group" style="padding-left: ${padding}px">
-                  <span class="chevron-icon text-[10px] text-zinc-500 group-hover:text-brand-orange w-3.5 flex items-center justify-center transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}">▶</span>
-                  <span class="folder-icon text-xs">${isExpanded ? '📂' : '📁'}</span>
+              const fileHtml = `
+                <div data-filepath="${item.path || nodePath}" onclick="openFileInViewer('${item.path || nodePath}')" class="file-tree-node flex items-center space-x-1.5 py-1 px-2 rounded cursor-pointer transition select-none ${activeClasses}" style="padding-left: ${padding}px" title="${item.path || nodePath}">
+                  <span class="file-emoji text-xs flex-shrink-0">${iconInfo.emoji}</span>
                   <span class="truncate text-[11px]">${item.name}</span>
                 </div>
-                <div id="${folderId}-children" class="folder-children ${isExpanded ? '' : 'hidden'}">
-                  ${buildTreeHTML(item, depth + 1, nodePath)}
-                </div>
-              </div>
-            `;
+              `;
+              current.chunks.push(fileHtml);
+            }
           } else {
-            const isCurrent = activeFile === item.path || (activeFile && (activeFile === nodePath || activeFile.endsWith('/' + item.name)));
-            const iconInfo = getFileIconInfo(item.name);
-            const activeClasses = isCurrent 
-              ? 'bg-white/10 text-brand-orange font-semibold border-l-2 border-brand-orange shadow-sm' 
-              : 'text-zinc-400 hover:text-white hover:bg-white/5 border-l-2 border-transparent';
-
-            html += `
-              <div data-filepath="${item.path || nodePath}" onclick="openFileInViewer('${item.path || nodePath}')" class="file-tree-node flex items-center space-x-1.5 py-1 px-2 rounded cursor-pointer transition select-none ${activeClasses}" style="padding-left: ${padding}px" title="${item.path || nodePath}">
-                <span class="file-emoji text-xs flex-shrink-0">${iconInfo.emoji}</span>
-                <span class="truncate text-[11px]">${item.name}</span>
-              </div>
-            `;
+            const finishedFrame = stack.pop();
+            const finishedHtml = finishedFrame.chunks.join('');
+            if (finishedFrame.parentFrame) {
+              finishedFrame.parentFrame.chunks.push(finishedHtml);
+              finishedFrame.parentFrame.chunks.push(finishedFrame.closeHtml);
+            } else {
+              return finishedHtml;
+            }
           }
         }
-        return html;
+        return '';
       }
 
       container.innerHTML = buildTreeHTML(treeNode);
@@ -6304,16 +6398,26 @@
 
       if (allPaths.length === 0 && currentData.file_tree) {
         allPaths = [];
-        function collectTreePaths(node, prefix = "") {
-          if (!node) return;
+        const visitedTree = new Set();
+        const pathStack = [{ node: currentData.file_tree, prefix: "" }];
+        while (pathStack.length > 0) {
+          const { node, prefix } = pathStack.pop();
+          if (!node || visitedTree.has(node)) continue;
+          visitedTree.add(node);
           if (node.type === 'file' || node.path) {
             allPaths.push(node.path || `${prefix}${node.name}`);
           }
           if (node.children) {
-            Object.keys(node.children).forEach(k => collectTreePaths(node.children[k], prefix ? `${prefix}/${k}` : `${k}`));
+            const keys = Object.keys(node.children);
+            for (let i = keys.length - 1; i >= 0; i--) {
+              const k = keys[i];
+              pathStack.push({
+                node: node.children[k],
+                prefix: prefix ? `${prefix}/${k}` : `${k}`
+              });
+            }
           }
         }
-        collectTreePaths(currentData.file_tree);
       }
 
       const satBuckets = {};
@@ -7059,23 +7163,31 @@
         return;
       }
 
-      // 1. Collect Ancestors from focusedNode up to root
+      // 1. Collect Ancestors from focusedNode up to root (Cycle-safe)
       const activeNodeIds = new Set();
+      const visitedAncestors = new Set();
       let curr = focusedNodeId;
-      while (curr) {
+      while (curr && !visitedAncestors.has(curr)) {
+        visitedAncestors.add(curr);
         activeNodeIds.add(curr);
         curr = mindmapParentMap[curr];
       }
 
-      // 2. Collect Descendants recursively
-      function collectDescendants(id) {
+      // 2. Collect Descendants iteratively (Cycle-safe)
+      const descStack = [focusedNodeId];
+      const visitedDescendants = new Set([focusedNodeId]);
+      while (descStack.length > 0) {
+        const id = descStack.pop();
         const children = mindmapChildrenMap[id] || [];
-        children.forEach(childId => {
-          activeNodeIds.add(childId);
-          collectDescendants(childId);
-        });
+        for (let i = 0; i < children.length; i++) {
+          const childId = children[i];
+          if (!visitedDescendants.has(childId)) {
+            visitedDescendants.add(childId);
+            activeNodeIds.add(childId);
+            descStack.push(childId);
+          }
+        }
       }
-      collectDescendants(focusedNodeId);
 
       // 3. Collect active edges connecting nodes in activeNodeIds
       const activeEdgeIds = new Set();
@@ -7657,12 +7769,25 @@
       } else if (node.nodeType === 'layer' || node.nodeType === 'domain') {
         const directChildren = node.rawLayer?.children || [];
         
-        // Count all descendant files recursively
-        function countDescendantFiles(item) {
-          if (!item) return 0;
-          if (item.nodeType === 'file' || (item.path && !item.children)) return 1;
-          if (!item.children || item.children.length === 0) return 0;
-          return item.children.reduce((acc, c) => acc + countDescendantFiles(c), 0);
+        // Count all descendant files iteratively (Cycle-safe)
+        function countDescendantFiles(rootItem) {
+          if (!rootItem) return 0;
+          let count = 0;
+          const stack = [rootItem];
+          const visited = new Set();
+          while (stack.length > 0) {
+            const item = stack.pop();
+            if (!item || visited.has(item)) continue;
+            visited.add(item);
+            if (item.nodeType === 'file' || (item.path && !item.children)) {
+              count++;
+            } else if (item.children && Array.isArray(item.children)) {
+              for (let i = item.children.length - 1; i >= 0; i--) {
+                stack.push(item.children[i]);
+              }
+            }
+          }
+          return count;
         }
 
         const totalFiles = countDescendantFiles(node.rawLayer);
@@ -8553,7 +8678,9 @@
         intent_summary: currentData.summary?.intent_summary || aiBatchState.intentCounts || {}
       };
 
-      const jsonStr = JSON.stringify(exportSnapshot, null, 2);
+      const jsonStr = (typeof window.safeJsonStringify === 'function') 
+        ? window.safeJsonStringify(exportSnapshot, 2) 
+        : JSON.stringify(exportSnapshot, null, 2);
       const blob = new Blob([jsonStr], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
@@ -8723,16 +8850,19 @@
       });
 
       if (currentData.mindmap && currentData.mindmap.children) {
-        function addAllRecursively(items) {
-          if (!items || !Array.isArray(items)) return;
-          items.forEach(item => {
-            if (item.id) expandedNodesSet.add(item.id);
-            if (item.children && item.children.length > 0) {
-              addAllRecursively(item.children);
+        const stack = [...currentData.mindmap.children];
+        const visited = new Set();
+        while (stack.length > 0) {
+          const item = stack.pop();
+          if (!item || visited.has(item)) continue;
+          visited.add(item);
+          if (item.id) expandedNodesSet.add(item.id);
+          if (item.children && Array.isArray(item.children)) {
+            for (let i = item.children.length - 1; i >= 0; i--) {
+              stack.push(item.children[i]);
             }
-          });
+          }
         }
-        addAllRecursively(currentData.mindmap.children);
       }
 
       renderMindmap();
@@ -11103,71 +11233,117 @@ class CodeCityMetropolis {
         if (distCountEl) distCountEl.innerText = districts.length;
 
         if (distListEl && this.districtTreeRoot) {
-          const renderDistrictTreeNode = (node) => {
-            const isRoot = node.path === 'root';
-            const shortName = isRoot ? 'Downtown Root (/)' : node.name;
-            const fileCount = node.files.length;
-            const hasChildren = node.children && node.children.length > 0;
-            const isCollapsed = this.collapsedDistricts.has(node.path);
+          const renderDistrictTreeIterative = (root) => {
+            if (!root) return '';
+            const visited = new Set();
+            const stack = [{
+              node: root,
+              chunks: []
+            }];
 
-            let html = `
-              <div class="district-tree-node space-y-0.5 ${node.depth > 0 ? 'ml-3 pl-1.5 border-l border-brand-border/40' : ''}" data-district-path="${escapeHtml(node.path)}">
-                <div class="district-item-row flex items-center justify-between p-1 rounded hover:bg-brand-card text-xs group transition cursor-pointer select-none"
-                     data-district-row="${escapeHtml(node.path)}"
-                     onclick="window.codeCityApp && window.codeCityApp.onDistrictRowClick(event, '${escapeJsString(node.path)}')">
-                  <div class="flex items-center space-x-1.5 truncate flex-1 min-w-0">
-                    ${(hasChildren || (node.files && node.files.length > 0)) ? `
-                      <button onclick="event.stopPropagation(); window.codeCityApp && window.codeCityApp.toggleDistrictCollapse('${escapeJsString(node.path)}')" class="p-0.5 text-zinc-500 hover:text-white rounded hover:bg-brand-dark transition">
-                        <i data-lucide="${isCollapsed ? 'chevron-right' : 'chevron-down'}" class="w-3 h-3"></i>
-                      </button>
-                    ` : '<span class="w-4"></span>'}
-                    <input type="checkbox" data-district="${escapeHtml(node.path)}" ${this.activeDistricts.has(node.path) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="window.codeCityApp && window.codeCityApp.onDistrictCheckboxChange(this)" class="rounded border-zinc-700 bg-zinc-900 text-brand-orange focus:ring-brand-orange focus:ring-offset-0 cursor-pointer">
-                    <i data-lucide="${isRoot ? 'cpu' : (hasChildren ? 'folder-tree' : 'folder')}" class="w-3 h-3 ${isRoot ? 'text-[#D9FF3D]' : 'text-brand-orange'} flex-shrink-0"></i>
-                    <span class="text-zinc-200 truncate ${isRoot ? 'font-bold text-[#D9FF3D]' : ''}" title="${escapeHtml(node.path)}">${escapeHtml(shortName)}</span>
-                  </div>
-                  <div class="flex items-center space-x-1 flex-shrink-0 ml-1">
-                    <span class="text-zinc-500 font-mono text-[10px]">(${fileCount})</span>
-                    <button onclick="event.stopPropagation(); window.codeCityApp && window.codeCityApp.focusDistrict('${escapeJsString(node.path)}')" title="Bezirk fokussieren" class="p-1 text-zinc-500 hover:text-white rounded hover:bg-brand-dark transition opacity-0 group-hover:opacity-100">
-                      <i data-lucide="crosshair" class="w-3 h-3"></i>
-                    </button>
-                  </div>
-                </div>
-            `;
+            while (stack.length > 0) {
+              const current = stack[stack.length - 1];
 
-            if (!isCollapsed) {
-              html += `<div class="space-y-0.5">`;
-              if (hasChildren) {
-                node.children.forEach(child => {
-                  html += renderDistrictTreeNode(child);
-                });
-              }
-              if (node.files && node.files.length > 0) {
-                node.files.forEach(f => {
-                  const fLang = f.language || 'Default';
-                  const fHex = '#' + this.getLanguageColor(fLang, f.path).toString(16).padStart(6, '0');
-                  const fName = f.path.split('/').pop();
-                  html += `
-                    <div class="district-file-item flex items-center justify-between p-1 pl-5 rounded hover:bg-brand-card text-[11px] group transition cursor-pointer text-zinc-300 hover:text-white select-none"
-                         data-file-path="${escapeHtml(f.path)}"
-                         data-parent-district="${escapeHtml(node.path)}"
-                         onclick="event.stopPropagation(); window.codeCityApp && window.codeCityApp.selectBuildingByPath('${escapeJsString(f.path)}')">
+              if (!current.initialized) {
+                current.initialized = true;
+                if (visited.has(current.node)) {
+                  stack.pop();
+                  continue;
+                }
+                visited.add(current.node);
+
+                const node = current.node;
+                const isRoot = node.path === 'root';
+                const shortName = isRoot ? 'Downtown Root (/)' : node.name;
+                const fileCount = node.files ? node.files.length : 0;
+                const hasChildren = node.children && node.children.length > 0;
+                const isCollapsed = this.collapsedDistricts.has(node.path);
+
+                let headerHtml = `
+                  <div class="district-tree-node space-y-0.5 ${node.depth > 0 ? 'ml-3 pl-1.5 border-l border-brand-border/40' : ''}" data-district-path="${escapeHtml(node.path)}">
+                    <div class="district-item-row flex items-center justify-between p-1 rounded hover:bg-brand-card text-xs group transition cursor-pointer select-none"
+                         data-district-row="${escapeHtml(node.path)}"
+                         onclick="window.codeCityApp && window.codeCityApp.onDistrictRowClick(event, '${escapeJsString(node.path)}')">
                       <div class="flex items-center space-x-1.5 truncate flex-1 min-w-0">
-                        <span class="w-2 h-2 rounded-full flex-shrink-0 shadow-sm" style="background-color: ${fHex};"></span>
-                        <span class="truncate font-mono text-zinc-300 group-hover:text-white" title="${escapeHtml(f.path)}">${escapeHtml(fName)}</span>
+                        ${(hasChildren || (node.files && node.files.length > 0)) ? `
+                          <button onclick="event.stopPropagation(); window.codeCityApp && window.codeCityApp.toggleDistrictCollapse('${escapeJsString(node.path)}')" class="p-0.5 text-zinc-500 hover:text-white rounded hover:bg-brand-dark transition">
+                            <i data-lucide="${isCollapsed ? 'chevron-right' : 'chevron-down'}" class="w-3 h-3"></i>
+                          </button>
+                        ` : '<span class="w-4"></span>'}
+                        <input type="checkbox" data-district="${escapeHtml(node.path)}" ${this.activeDistricts.has(node.path) ? 'checked' : ''} onclick="event.stopPropagation()" onchange="window.codeCityApp && window.codeCityApp.onDistrictCheckboxChange(this)" class="rounded border-zinc-700 bg-zinc-900 text-brand-orange focus:ring-brand-orange focus:ring-offset-0 cursor-pointer">
+                        <i data-lucide="${isRoot ? 'cpu' : (hasChildren ? 'folder-tree' : 'folder')}" class="w-3 h-3 ${isRoot ? 'text-[#D9FF3D]' : 'text-brand-orange'} flex-shrink-0"></i>
+                        <span class="text-zinc-200 truncate ${isRoot ? 'font-bold text-[#D9FF3D]' : ''}" title="${escapeHtml(node.path)}">${escapeHtml(shortName)}</span>
                       </div>
-                      <span class="text-zinc-500 font-mono text-[9px] flex-shrink-0 ml-1">${f.code_lines || f.total_lines || 0} LOC</span>
+                      <div class="flex items-center space-x-1 flex-shrink-0 ml-1">
+                        <span class="text-zinc-500 font-mono text-[10px]">(${fileCount})</span>
+                        <button onclick="event.stopPropagation(); window.codeCityApp && window.codeCityApp.focusDistrict('${escapeJsString(node.path)}')" title="Bezirk fokussieren" class="p-1 text-zinc-500 hover:text-white rounded hover:bg-brand-dark transition opacity-0 group-hover:opacity-100">
+                          <i data-lucide="crosshair" class="w-3 h-3"></i>
+                        </button>
+                      </div>
                     </div>
-                  `;
-                });
-              }
-              html += `</div>`;
-            }
+                `;
 
-            html += `</div>`;
-            return html;
+                current.chunks.push(headerHtml);
+
+                if (!isCollapsed) {
+                  current.chunks.push(`<div class="space-y-0.5">`);
+                  current.childrenToProcess = hasChildren ? [...node.children] : [];
+                  current.childIdx = 0;
+                  current.hasSubgroup = true;
+                } else {
+                  current.childrenToProcess = [];
+                  current.childIdx = 0;
+                  current.hasSubgroup = false;
+                }
+              }
+
+              if (current.childIdx < current.childrenToProcess.length) {
+                const childNode = current.childrenToProcess[current.childIdx++];
+                stack.push({
+                  node: childNode,
+                  chunks: [],
+                  parentFrame: current
+                });
+              } else {
+                const node = current.node;
+                const isCollapsed = this.collapsedDistricts.has(node.path);
+                if (!isCollapsed && node.files && node.files.length > 0) {
+                  node.files.forEach(f => {
+                    const fLang = f.language || 'Default';
+                    const fHex = '#' + this.getLanguageColor(fLang, f.path).toString(16).padStart(6, '0');
+                    const fName = f.path.split('/').pop();
+                    current.chunks.push(`
+                      <div class="district-file-item flex items-center justify-between p-1 pl-5 rounded hover:bg-brand-card text-[11px] group transition cursor-pointer text-zinc-300 hover:text-white select-none"
+                           data-file-path="${escapeHtml(f.path)}"
+                           data-parent-district="${escapeHtml(node.path)}"
+                           onclick="event.stopPropagation(); window.codeCityApp && window.codeCityApp.selectBuildingByPath('${escapeJsString(f.path)}')">
+                        <div class="flex items-center space-x-1.5 truncate flex-1 min-w-0">
+                          <span class="w-2 h-2 rounded-full flex-shrink-0 shadow-sm" style="background-color: ${fHex};"></span>
+                          <span class="truncate font-mono text-zinc-300 group-hover:text-white" title="${escapeHtml(f.path)}">${escapeHtml(fName)}</span>
+                        </div>
+                        <span class="text-zinc-500 font-mono text-[9px] flex-shrink-0 ml-1">${f.code_lines || f.total_lines || 0} LOC</span>
+                      </div>
+                    `);
+                  });
+                }
+                if (current.hasSubgroup) {
+                  current.chunks.push(`</div>`);
+                }
+                current.chunks.push(`</div>`);
+
+                const finishedFrame = stack.pop();
+                const finishedHtml = finishedFrame.chunks.join('');
+                if (finishedFrame.parentFrame) {
+                  finishedFrame.parentFrame.chunks.push(finishedHtml);
+                } else {
+                  return finishedHtml;
+                }
+              }
+            }
+            return '';
           };
 
-          distListEl.innerHTML = renderDistrictTreeNode(this.districtTreeRoot);
+          distListEl.innerHTML = renderDistrictTreeIterative(this.districtTreeRoot);
         }
 
         if (window.lucide && typeof lucide.createIcons === 'function') {
@@ -12659,7 +12835,9 @@ class CodeCityMetropolis {
         }
 
         const projName = (activeData.project_name || 'CodeCity_Metropolis').replace(/[^a-zA-Z0-9_-]/g, '_');
-        const jsonStr = JSON.stringify(activeData);
+        const jsonStr = (typeof window.safeJsonStringify === 'function')
+          ? window.safeJsonStringify(activeData, 0)
+          : JSON.stringify(activeData);
         
         let pageHtml = document.documentElement.outerHTML;
         const autoInjectScript = `\n<script>\nwindow.addEventListener('DOMContentLoaded', () => {\n  const standaloneData = ${jsonStr};\n  if (typeof loadAnalysisResultsData === 'function') {\n    loadAnalysisResultsData(standaloneData);\n  } else if (window.codeCityApp && typeof window.codeCityApp.buildCity === 'function') {\n    window.codeCityApp.buildCity(standaloneData);\n  }\n});\n<\/script>\n`;
