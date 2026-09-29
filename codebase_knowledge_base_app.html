@@ -11192,6 +11192,77 @@ class CodeCityMetropolis {
         }
       }
 
+      onDistrictRowClick(event, districtPath) {
+        if (!districtPath) return;
+        this.focusDistrict(districtPath);
+      }
+
+      syncSidebarToBuilding(buildingObj) {
+        if (!buildingObj) return;
+        const districtPath = buildingObj.district || 'root';
+        const filePath = buildingObj.fileData ? buildingObj.fileData.path : null;
+
+        // 1. Ensure sidebar is open/visible
+        this.toggleSidebar(true);
+
+        // 2. Expand all ancestor districts along the path
+        let changed = false;
+        if (this.collapsedDistricts.has('root')) {
+          this.collapsedDistricts.delete('root');
+          changed = true;
+        }
+        if (districtPath && districtPath !== 'root') {
+          const parts = districtPath.split('/');
+          let cur = '';
+          parts.forEach(p => {
+            cur = cur ? cur + '/' + p : p;
+            if (this.collapsedDistricts.has(cur)) {
+              this.collapsedDistricts.delete(cur);
+              changed = true;
+            }
+          });
+          if (this.collapsedDistricts.has(districtPath)) {
+            this.collapsedDistricts.delete(districtPath);
+            changed = true;
+          }
+        }
+
+        if (changed && this.districts && this.data) {
+          const fileList = this.extractNormalizedFiles(this.data);
+          this.setupFilterSidebar(this.districts, fileList);
+        }
+
+        // 3. Highlight and scroll into view with slight delay to ensure DOM is ready
+        setTimeout(() => {
+          this.highlightSidebarItem(filePath, districtPath);
+        }, changed ? 60 : 10);
+      }
+
+      highlightSidebarItem(filePath, districtPath) {
+        const listEl = document.getElementById('cityDistrictFilterList');
+        if (!listEl) return;
+
+        // Remove previous highlight classes
+        listEl.querySelectorAll('.district-sidebar-highlight').forEach(el => {
+          el.classList.remove('district-sidebar-highlight');
+        });
+
+        let targetEl = null;
+        if (filePath) {
+          const escapedFile = (window.CSS && CSS.escape) ? CSS.escape(filePath) : filePath.replace(/([ #;?%&,.+*~\':"!^$[\]()=>|\/@])/g, '\\$1');
+          targetEl = listEl.querySelector(`[data-file-path="${escapedFile}"]`);
+        }
+        if (!targetEl && districtPath) {
+          const escapedDist = (window.CSS && CSS.escape) ? CSS.escape(districtPath) : districtPath.replace(/([ #;?%&,.+*~\':"!^$[\]()=>|\/@])/g, '\\$1');
+          targetEl = listEl.querySelector(`[data-district-row="${escapedDist}"]`) || listEl.querySelector(`[data-district-path="${escapedDist}"]`);
+        }
+
+        if (targetEl) {
+          targetEl.classList.add('district-sidebar-highlight');
+          targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }
+
       onSearchInput(query) {
         this.searchQuery = (query || '').toLowerCase().trim();
         const clearBtn = document.getElementById('citySearchClearBtn');
@@ -11702,6 +11773,7 @@ class CodeCityMetropolis {
         this.updateSelectionBox(buildingObj);
         this.openInspector(buildingObj);
         this.updateDistrictHighwayHighlighting();
+        this.syncSidebarToBuilding(buildingObj);
       }
 
       updateSelectionBox(buildingObj) {
@@ -12262,9 +12334,39 @@ class CodeCityMetropolis {
         this.updateDistrictHighwayHighlighting();
 
         const targetLook = new THREE.Vector3(district.x, 2, district.z);
-        const targetCam = new THREE.Vector3(district.x + district.width * 0.8, district.width * 0.9, district.z + district.depth * 0.9);
+        const targetCam = new THREE.Vector3(district.x + district.width * 0.8, Math.max(25, district.width * 0.9), district.z + district.depth * 0.9);
 
         this.smoothCameraFlight(targetCam, targetLook, 750);
+
+        // Sidebar synchronization: ensure sidebar is open, ancestors uncollapsed, and item highlighted
+        this.toggleSidebar(true);
+        let changed = false;
+        if (this.collapsedDistricts.has('root')) {
+          this.collapsedDistricts.delete('root');
+          changed = true;
+        }
+        if (districtPath !== 'root') {
+          const parts = districtPath.split('/');
+          let cur = '';
+          parts.forEach(p => {
+            cur = cur ? cur + '/' + p : p;
+            if (this.collapsedDistricts.has(cur)) {
+              this.collapsedDistricts.delete(cur);
+              changed = true;
+            }
+          });
+          if (this.collapsedDistricts.has(districtPath)) {
+            this.collapsedDistricts.delete(districtPath);
+            changed = true;
+          }
+        }
+        if (changed && this.districts && this.data) {
+          const fileList = this.extractNormalizedFiles(this.data);
+          this.setupFilterSidebar(this.districts, fileList);
+        }
+        setTimeout(() => {
+          this.highlightSidebarItem(null, districtPath);
+        }, changed ? 60 : 10);
       }
 
       autoFitMetropolis(smooth = true) {
