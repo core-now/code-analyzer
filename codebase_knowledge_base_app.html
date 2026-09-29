@@ -2565,20 +2565,116 @@
   </div>
 
   <script>
-    // --- Global Analysis Ingestion & Early Lifecycle Hooks ---
-    window.__handleIncomingData = function(data) {
-      if (typeof window._internalIngestAnalysisData === 'function') {
-        return window._internalIngestAnalysisData(data);
+    // --- Global Analysis Ingestion & Single Render Execution Pipeline ---
+    let isRenderingAnalyzedCodebase = false;
+    window.__pendingAnalysisData = null;
+
+    function renderAnalyzedCodebase(data) {
+      if (!data) return;
+      if (isRenderingAnalyzedCodebase) {
+        console.warn("[renderAnalyzedCodebase] Render lock active - skipping re-entrant call.");
+        return;
       }
-      window.__pendingAnalysisData = data;
-      return true;
-    };
-    window.loadAnalysisData = function(data) {
-      return window.__handleIncomingData(data);
-    };
-    window.ingestAnalysisData = function(data) {
-      return window.__handleIncomingData(data);
-    };
+      isRenderingAnalyzedCodebase = true;
+      try {
+        // Normalize files array to file_contents map if needed (e.g. from Git API tree)
+        if (Array.isArray(data.files) && !data.file_contents) {
+          data.file_contents = {};
+          data.files.forEach(f => {
+            if (f && f.path) {
+              data.file_contents[f.path] = f.content || (typeof generateFallbackFileContent === 'function' ? generateFallbackFileContent(f.path) : "");
+            }
+          });
+        }
+
+        // Reconstruct file_tree if missing
+        if (!data.file_tree && (data.file_contents || data.files)) {
+          const fileMap = data.file_contents || {};
+          const reconstructedTree = { name: "root", type: "directory", children: {} };
+          Object.keys(fileMap).forEach(p => {
+            const parts = p.split(/[\/\\]/);
+            let curr = reconstructedTree;
+            parts.forEach((part, idx) => {
+              if (idx === parts.length - 1) {
+                curr.children[part] = {
+                  name: part,
+                  type: "file",
+                  path: p,
+                  language: typeof getLanguageFromPath === 'function' ? getLanguageFromPath(p) : 'text',
+                  lines: typeof fileMap[p] === 'string' ? fileMap[p].split('\n').length : 100
+                };
+              } else {
+                curr.children[part] = curr.children[part] || { name: part, type: "directory", children: {} };
+                curr = curr.children[part];
+              }
+            });
+          });
+          data.file_tree = reconstructedTree;
+        }
+
+        currentData = data;
+        window.globalAnalysisData = data;
+
+        if (window.codeCityApp && typeof window.codeCityApp.buildCity === 'function') {
+          window.codeCityApp.buildCity(data);
+        }
+        const dropzone = document.getElementById('dropzoneView');
+        if (dropzone) dropzone.classList.add('hidden');
+        const projBadge = document.getElementById('projectBadge');
+        if (projBadge) projBadge.classList.remove('hidden');
+        const projName = document.getElementById('projectNameDisplay');
+        if (projName) projName.innerText = data.project_name || "Repository";
+
+        // Populate Metrics
+        const totalLoc = document.getElementById('totalLocDisplay');
+        if (totalLoc) totalLoc.innerText = data.summary?.code_lines?.toLocaleString() || (data.summary?.total_lines?.toLocaleString() || 0);
+        const fileBadge = document.getElementById('fileCountBadge');
+        if (fileBadge) fileBadge.innerText = `${data.summary?.total_files || Object.keys(data.file_contents || data.files || {}).length} files`;
+        
+        const langStr = Object.entries(data.summary?.languages || {}).map(([l, c]) => `${l}: ${c}`).join(' | ');
+        const langList = document.getElementById('languagesListDisplay');
+        if (langList) langList.innerText = langStr;
+
+        // Render Risk Analysis & Health Cards
+        if (typeof renderRiskAnalysis === 'function') {
+          renderRiskAnalysis(data.risk_radar, data);
+        }
+
+        // Render API Catalog
+        if (typeof renderApiCatalog === 'function') {
+          renderApiCatalog(data.api_catalog);
+        }
+
+        // Render Tree & Mindmap
+        if (typeof renderFileTree === 'function') {
+          renderFileTree(data.file_tree);
+        }
+        if (typeof renderMindmap === 'function') {
+          renderMindmap();
+        }
+        if (window.lucide && typeof lucide.createIcons === 'function') {
+          lucide.createIcons();
+        }
+
+        // Open first file if available
+        const firstPath = Object.keys(data.file_contents || {})[0];
+        if (firstPath && typeof openFileInViewer === 'function') {
+          openFileInViewer(firstPath);
+        }
+      } catch (err) {
+        console.error("Error in renderAnalyzedCodebase:", err);
+      } finally {
+        isRenderingAnalyzedCodebase = false;
+      }
+    }
+
+    // Expose single canonical entry points (strictly iterative, no recursion)
+    window.renderAnalyzedCodebase = renderAnalyzedCodebase;
+    window.loadAnalysisData = function(data) { renderAnalyzedCodebase(data); };
+    window.ingestAnalysisData = function(data) { renderAnalyzedCodebase(data); };
+    window.__handleIncomingData = function(data) { renderAnalyzedCodebase(data); };
+    function ingestAnalysisData(data) { renderAnalyzedCodebase(data); }
+    function loadAnalysisData(data) { renderAnalyzedCodebase(data); }
     window.safeJsonStringify = function(obj, space = 2) {
       const seen = new WeakSet();
       return JSON.stringify(obj, (key, value) => {
@@ -5047,96 +5143,12 @@
       ingestAnalysisData(analysis);
     }
 
-    // --- Ingest Data & Render Components ---
-    function ingestAnalysisData(data) {
-      if (!data) return;
-
-      // Normalize files array to file_contents map if needed (e.g. from Git API tree)
-      if (Array.isArray(data.files) && !data.file_contents) {
-        data.file_contents = {};
-        data.files.forEach(f => {
-          if (f && f.path) {
-            data.file_contents[f.path] = f.content || generateFallbackFileContent(f.path);
-          }
-        });
-      }
-
-      // Reconstruct file_tree if missing
-      if (!data.file_tree && (data.file_contents || data.files)) {
-        const fileMap = data.file_contents || {};
-        const reconstructedTree = { name: "root", type: "directory", children: {} };
-        Object.keys(fileMap).forEach(p => {
-          const parts = p.split(/[\/\\]/);
-          let curr = reconstructedTree;
-          parts.forEach((part, idx) => {
-            if (idx === parts.length - 1) {
-              curr.children[part] = {
-                name: part,
-                type: "file",
-                path: p,
-                language: typeof getLanguageFromPath === 'function' ? getLanguageFromPath(p) : 'text',
-                lines: typeof fileMap[p] === 'string' ? fileMap[p].split('\n').length : 100
-              };
-            } else {
-              curr.children[part] = curr.children[part] || { name: part, type: "directory", children: {} };
-              curr = curr.children[part];
-            }
-          });
-        });
-        data.file_tree = reconstructedTree;
-      }
-
-      currentData = data;
-      window.globalAnalysisData = data;
-
-      if (window.codeCityApp && typeof window.codeCityApp.buildCity === 'function') {
-        window.codeCityApp.buildCity(data);
-      }
-      const dropzone = document.getElementById('dropzoneView');
-      if (dropzone) dropzone.classList.add('hidden');
-      const projBadge = document.getElementById('projectBadge');
-      if (projBadge) projBadge.classList.remove('hidden');
-      const projName = document.getElementById('projectNameDisplay');
-      if (projName) projName.innerText = data.project_name || "Repository";
-
-      // Populate Metrics
-      const totalLoc = document.getElementById('totalLocDisplay');
-      if (totalLoc) totalLoc.innerText = data.summary?.code_lines?.toLocaleString() || (data.summary?.total_lines?.toLocaleString() || 0);
-      const fileBadge = document.getElementById('fileCountBadge');
-      if (fileBadge) fileBadge.innerText = `${data.summary?.total_files || Object.keys(data.file_contents || data.files || {}).length} files`;
-      
-      const langStr = Object.entries(data.summary?.languages || {}).map(([l, c]) => `${l}: ${c}`).join(' | ');
-      const langList = document.getElementById('languagesListDisplay');
-      if (langList) langList.innerText = langStr;
-
-      // Render Risk Analysis & Health Cards
-      renderRiskAnalysis(data.risk_radar, data);
-
-      // Render API Catalog
-      renderApiCatalog(data.api_catalog);
-
-      // Render Tree & Mindmap
-      renderFileTree(data.file_tree);
-      renderMindmap();
-      if (window.lucide && typeof lucide.createIcons === 'function') {
-        lucide.createIcons();
-      }
-
-      // Open first file if available
-      const firstPath = Object.keys(data.file_contents || {})[0];
-      if (firstPath) {
-        openFileInViewer(firstPath);
-      }
-    }
-
-    // Expose global alias for backward compatibility and external imports
-    window._internalIngestAnalysisData = ingestAnalysisData;
-    window.loadAnalysisData = ingestAnalysisData;
-    window.ingestAnalysisData = ingestAnalysisData;
+    // --- Ingest Data & Render Components (Alias to centralized renderAnalyzedCodebase) ---
+    window._internalIngestAnalysisData = renderAnalyzedCodebase;
     if (window.__pendingAnalysisData) {
       const _pData = window.__pendingAnalysisData;
       window.__pendingAnalysisData = null;
-      ingestAnalysisData(_pData);
+      renderAnalyzedCodebase(_pData);
     }
 
     // --- Risk & Health Radar / Analysis Renderer ---
