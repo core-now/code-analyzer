@@ -3,7 +3,7 @@ const fs = require('fs');
 const jsCode = `
     // =========================================================================
     // 🏙️ 3D CODE-CITY METROPOLIS (Three.js r128 Engine)
-    // Tron-Style Ground Streets, Manhattan Routing, Instanced Low-Poly Trees & Deko,
+    // Cyber-Style Ground Streets, Manhattan Routing, Instanced Low-Poly Trees & Deko,
     // Shared Materials, Memory Disposal & Interactive Filter Sidebar
     // =========================================================================
 
@@ -209,7 +209,7 @@ const jsCode = `
         floorMesh.frustumCulled = true;
         this.scene.add(floorMesh);
 
-        // Glowing Tron Highway Matrix Grid
+        // Glowing Cyber Highway Matrix Grid
         this.gridFloor = new THREE.GridHelper(1200, 120, this.styleColors.neon, 0x182030);
         this.gridFloor.position.y = -1.1;
         this.gridFloor.material.opacity = 0.4;
@@ -422,8 +422,8 @@ const jsCode = `
         // 7. Construct Low-Poly Instanced Trees & Deco (1 Draw Call for all trees!)
         this.createInstancedDeco(treeCrownTransforms, bollardTransforms);
 
-        // 8. Construct Tron-Style Ground Highways & Data Impulse Traffic
-        this.createTronGroundHighways(fileList);
+        // 8. Construct Cyber-Style Ground Highways & Data Impulse Traffic
+        this.createCyberGroundHighways(fileList);
 
         // 9. Update Filter Sidebar, Badges & Raycast Targets
         this.setupFilterSidebar(districtArray, fileList);
@@ -534,7 +534,7 @@ const jsCode = `
         plateMesh.frustumCulled = true;
         this.scene.add(plateMesh);
 
-        // 2. Glowing Neon Border (Tron Green / Orange)
+        // 2. Glowing Neon Border (Cyber Green / Orange)
         const edgesGeo = new THREE.EdgesGeometry(plateGeo);
         const edgesMat = new THREE.LineBasicMaterial({
           color: this.styleColors.neon,
@@ -814,9 +814,9 @@ const jsCode = `
       }
 
       // =======================================================================
-      // Tron-Style Ground Streets with 90° Manhattan Orthogonal Routing
+      // Cyber-Style Ground Streets with 90° Manhattan Orthogonal Routing
       // =======================================================================
-      createTronGroundHighways(fileList) {
+      createCyberGroundHighways(fileList) {
         const highwayPairs = [];
         const seenPairs = new Set();
 
@@ -874,7 +874,7 @@ const jsCode = `
           // Create Smooth CatmullRom Curve along Manhattan Waypoints
           const curve = new THREE.CatmullRomCurve3(points, false, 'catmullrom', 0.15);
 
-          // Glowing Tron Street Tube
+          // Glowing Cyber Street Tube
           const dist = Math.sqrt(dx * dx + dz * dz);
           const segments = Math.max(16, Math.min(80, Math.round(dist * 0.8)));
           const tubeGeo = new THREE.TubeGeometry(curve, segments, 0.32, 6, false);
@@ -895,7 +895,7 @@ const jsCode = `
           };
           this.scene.add(tubeMesh);
 
-          // Animated Data Energy Packets rushing along the Tron Ground Streets
+          // Animated Data Energy Packets rushing along the Cyber Ground Streets
           const particles = [];
           const packetCount = Math.max(1, Math.min(3, Math.round(dist / 65)));
           for (let i = 0; i < packetCount; i++) {
@@ -1242,7 +1242,7 @@ const jsCode = `
         const summaryStats = document.getElementById('citySummaryStats');
         if (summaryStats) {
           const totalLoc = this.buildings.reduce((acc, b) => acc + (b.loc || 0), 0);
-          summaryStats.innerText = 'Metropolis: ' + this.districts.length + ' Districts | ' + totalLoc.toLocaleString() + ' LOC | ' + this.highways.length + ' Tron Highways';
+          summaryStats.innerText = 'Metropolis: ' + this.districts.length + ' Districts | ' + totalLoc.toLocaleString() + ' LOC | ' + this.highways.length + ' Cyber Highways';
         }
       }
 
@@ -1274,7 +1274,7 @@ const jsCode = `
           }
         }
 
-        // Animate Data Impulses along Tron Ground Streets
+        // Animate Data Impulses along Cyber Ground Streets
         if (this.trafficEnabled) {
           this.highways.forEach(h => {
             if (!h.tubeMesh.visible) return;
